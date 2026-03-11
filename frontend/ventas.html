@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ixtli — Ventas</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+
+<div class="overlay" id="overlay"></div>
+
+<aside class="sidebar" id="sidebar">
+    <div class="s-logo">
+        <div class="s-mark">IX</div>
+        <span class="s-name">Ixtli</span>
+        <button class="s-close" id="sClose" aria-label="Cerrar">✕</button>
+    </div>
+    <nav class="s-nav">
+        <div class="s-section">Panel</div>
+        <a class="s-link" href="/">             <span class="s-icon">▦</span> Dashboard</a>
+        <a class="s-link" href="/app/ventas">   <span class="s-icon">💰</span> Ventas</a>
+        <a class="s-link" href="/app/productos"><span class="s-icon">📦</span> Productos</a>
+        <a class="s-link" href="/app/importar"> <span class="s-icon">📤</span> Importar CSV</a>
+    </nav>
+    <div class="s-footer">
+        <a class="s-link" href="/docs" target="_blank"><span class="s-icon">📚</span> API Docs</a>
+    </div>
+</aside>
+
+<!-- Modal nueva venta -->
+<div class="modal-bg" id="modalBg">
+    <div class="modal">
+        <button class="modal-close" id="modalClose" aria-label="Cerrar">✕</button>
+        <div class="modal-title">Registrar Venta</div>
+        <div id="flashModal" class="alert-banner"></div>
+        <div class="modal-grid">
+            <div class="field">
+                <label>Producto *</label>
+                <select id="fProducto"><option value="">Seleccionar producto…</option></select>
+            </div>
+            <div class="field">
+                <label>Cantidad *</label>
+                <input type="number" id="fCantidad" min="1" value="1">
+            </div>
+            <div class="field">
+                <label>Precio unitario (opcional)</label>
+                <input type="number" id="fPrecio" min="0" step="0.01" placeholder="Se usa el precio del producto">
+            </div>
+            <div class="field">
+                <label>Fecha (opcional)</label>
+                <input type="date" id="fFecha">
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-ghost" id="btnCancelar">Cancelar</button>
+            <button class="btn btn-primary" id="btnGuardar">Registrar</button>
+        </div>
+    </div>
+</div>
+
+<div class="main">
+    <header class="header">
+        <button class="hamburger" id="burger" aria-label="Menú">☰</button>
+        <div class="h-title">Ventas <span>· Historial y registro</span></div>
+        <div class="h-gap"></div>
+        <div class="h-status"><div class="status-dot"></div><span id="hTime">—</span></div>
+        <button class="h-btn" id="btnNuevaVenta">+ Nueva venta</button>
+    </header>
+
+    <main class="content">
+
+        <div class="pg-head">
+            <div>
+                <div class="pg-title">Historial de Ventas</div>
+                <div class="pg-sub">Consulta y registra transacciones</div>
+            </div>
+        </div>
+
+        <!-- KPIs rápidos -->
+        <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
+            <div class="kpi blue">
+                <div class="kpi-top"><div class="kpi-label">Total del período</div><div class="kpi-ico blue">💰</div></div>
+                <div class="kpi-val" id="kTotal"><span class="skel" style="width:100px"></span></div>
+                <div class="kpi-meta" id="kTotalMeta">—</div>
+            </div>
+            <div class="kpi cyan">
+                <div class="kpi-top"><div class="kpi-label">Transacciones</div><div class="kpi-ico cyan">🧾</div></div>
+                <div class="kpi-val" id="kCount"><span class="skel" style="width:60px"></span></div>
+                <div class="kpi-meta">en el período</div>
+            </div>
+            <div class="kpi green">
+                <div class="kpi-top"><div class="kpi-label">Ticket promedio</div><div class="kpi-ico green">📊</div></div>
+                <div class="kpi-val" id="kAvg"><span class="skel" style="width:80px"></span></div>
+                <div class="kpi-meta">por venta</div>
+            </div>
+        </div>
+
+        <!-- Filtros -->
+        <div class="filter-bar">
+            <label>Desde</label>
+            <input type="date" id="fDesde">
+            <label>Hasta</label>
+            <input type="date" id="fHasta">
+            <button class="btn btn-primary btn-sm" id="btnFiltrar">Filtrar</button>
+            <button class="btn btn-ghost btn-sm" id="btnLimpiar">Limpiar</button>
+            <div id="flashBanner" class="alert-banner" style="margin-left:auto"></div>
+        </div>
+
+        <!-- Tabla -->
+        <div class="dcard">
+            <div class="dcard-head">
+                <div>
+                    <div class="dcard-title">Ventas</div>
+                    <div class="dcard-sub" id="tblSubtitle">Mostrando todo el historial</div>
+                </div>
+            </div>
+            <div class="dcard-body">
+                <div class="tbl-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Producto</th>
+                                <th>Cantidad</th>
+                                <th>P. Unitario</th>
+                                <th>Total</th>
+                                <th>Fecha</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ventasTbody">
+                            <tr><td colspan="6" class="empty">Cargando…</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </main>
+</div>
+
+<script src="/js/common.js"></script>
+<script src="/js/ventas.js"></script>
+</body>
+</html>

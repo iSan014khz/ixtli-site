@@ -6,7 +6,8 @@ from datetime import datetime
 class VentaCrear(BaseModel):
     producto_id: int
     cantidad: int
-    fecha: Optional[datetime] = None  # si no viene, usas datetime.now() en el endpoint
+    precio_unitario: Optional[float] = None
+    fecha: Optional[datetime] = None
 
 class VentaRespuesta(BaseModel):
     id: int

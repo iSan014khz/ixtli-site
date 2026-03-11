@@ -1,12 +1,13 @@
 from datetime import date, datetime, timedelta
 from typing import Literal, Optional
 
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from database import get_db
-from models import Producto, Venta
+from backend.database import get_db
+from backend.models import Producto, Venta
 
 router = APIRouter(prefix="/reportes", tags=["reportes"])
 
@@ -70,15 +71,18 @@ def dashboard(db: Session = Depends(get_db)):
 
 @router.get("/ventas-por-periodo")
 def ventas_por_periodo(
+    agrupacion: Literal["dia", "semana", "mes"] = "dia",
     desde: Optional[date] = None,
     hasta: Optional[date] = None,
     db: Session = Depends(get_db)
 ):
-    """Ventas agrupadas por día para la gráfica de líneas. Acepta ?desde=&hasta="""
+    """Ventas agrupadas por período. Acepta ?agrupacion=dia|semana|mes&desde=&hasta="""
     _validar_rango(desde, hasta)
 
+    fmt = _formato_strftime(agrupacion)
+
     query = db.query(
-        func.strftime("%Y-%m-%d", Venta.fecha).label("dia"),
+        func.strftime(fmt, Venta.fecha).label("periodo"),
         func.coalesce(func.sum(Venta.precio_total), 0.0).label("total"),
         func.count(Venta.id).label("num_ventas")
     )
@@ -89,9 +93,9 @@ def ventas_por_periodo(
             Venta.fecha <= datetime.combine(hasta, datetime.max.time())
         )
 
-    resultados = query.group_by("dia").order_by("dia").all()
+    resultados = query.group_by("periodo").order_by("periodo").all()
 
-    return [{"dia": r.dia, "total": round(float(r.total), 2), "num_ventas": r.num_ventas}
+    return [{"periodo": r.periodo, "total": round(float(r.total), 2), "num_ventas": r.num_ventas}
             for r in resultados]
 
 

@@ -10,11 +10,11 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from database import get_db
-from models import Carga, Venta, Producto
+from backend.database import get_db
+from backend.models import Carga, Venta, Producto
 from datetime import datetime
 
-from schemas.carga import MapeoColumnas, ResultadoCarga
+from backend.schemas.carga import MapeoColumnas, ResultadoCarga
 
 router = APIRouter(prefix="/cargas", tags=["cargas"])
 

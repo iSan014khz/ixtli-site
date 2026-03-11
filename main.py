@@ -1,18 +1,36 @@
 from fastapi import FastAPI
-from backend.routers import cargar_archivos, uploads, ventas, productos, reportes
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+from backend.routers import cargasArch, ventas, productos, reportes
 import uvicorn
 
-app = FastAPI()
+app = FastAPI(title="Ixtli API", version="1.0.0")
 
-app.include_router(cargar_archivos.router)
-app.include_router(uploads.router)
+# ── API routers ────────────────────────────────────────────────────────────────
+app.include_router(cargasArch.router)
 app.include_router(ventas.router)
 app.include_router(productos.router)
 app.include_router(reportes.router)
 
-@app.get("/")
-def read_root():
-    return {"message": "Bienvenido a la API de carga de archivos"}
+# ── Frontend pages ─────────────────────────────────────────────────────────────
+@app.get("/", response_class=FileResponse, include_in_schema=False)
+def serve_dashboard():
+    return FileResponse("frontend/index.html")
+
+@app.get("/app/ventas", response_class=FileResponse, include_in_schema=False)
+def serve_ventas():
+    return FileResponse("frontend/ventas.html")
+
+@app.get("/app/productos", response_class=FileResponse, include_in_schema=False)
+def serve_productos():
+    return FileResponse("frontend/productos.html")
+
+@app.get("/app/importar", response_class=FileResponse, include_in_schema=False)
+def serve_importar():
+    return FileResponse("frontend/importar.html")
+
+# Archivos estáticos (CSS, JS, etc.) — va DESPUÉS de todos los routers
+app.mount("/", StaticFiles(directory="frontend"), name="static")
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)

@@ -3,7 +3,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 
 engine = create_engine(
-    "sqlite:///./data/abarrote.db", check_same_thread=False  # necesario solo para SQLite
+    "sqlite:///./data/abarrote.db",
+    connect_args={"check_same_thread": False}  # necesario solo para SQLite
 )
 """
 El engine es la conexión física a la base de datos. La cadena "sqlite:///./data/abarrote.db" 

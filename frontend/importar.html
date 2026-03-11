@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ixtli — Importar CSV</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/app.css">
+    <style>
+        /* Stepper */
+        .stepper { display:flex; align-items:center; gap:0; margin-bottom:24px; }
+        .step { display:flex; align-items:center; gap:8px; }
+        .step-num {
+            width:28px; height:28px; border-radius:50%; border:2px solid var(--border);
+            display:flex; align-items:center; justify-content:center;
+            font-size:12px; font-weight:700; color:var(--text-3); background:var(--card);
+            flex-shrink:0; transition:all .25s;
+        }
+        .step.active .step-num { border-color:var(--accent); color:#fff; background:var(--accent); box-shadow:0 0 12px var(--glow); }
+        .step.done .step-num { border-color:var(--green); color:#fff; background:var(--green); }
+        .step-label { font-size:12.5px; font-weight:500; color:var(--text-3); }
+        .step.active .step-label { color:var(--text); }
+        .step.done  .step-label { color:var(--green); }
+        .step-line { flex:1; height:1px; background:var(--border); margin:0 10px; min-width:24px; }
+
+        /* Upload zone */
+        .drop-zone {
+            border:2px dashed var(--border-hi); border-radius:var(--r);
+            padding:48px 24px; text-align:center; cursor:pointer;
+            transition:border-color .2s, background .2s;
+        }
+        .drop-zone:hover, .drop-zone.drag-over {
+            border-color:var(--accent); background:var(--soft);
+        }
+        .drop-icon { font-size:40px; margin-bottom:14px; }
+        .drop-title { font-size:16px; font-weight:600; margin-bottom:6px; }
+        .drop-sub { font-size:13px; color:var(--text-2); margin-bottom:20px; }
+
+        /* Preview table */
+        .preview-table { font-size:12px; }
+        .preview-table th { background:var(--elevated); }
+        .preview-table td, .preview-table th { padding:8px 12px; }
+
+        /* Mapping */
+        .mapping-grid { display:grid; grid-template-columns:1fr 24px 1fr; align-items:center; gap:10px 8px; }
+        .mapping-arrow { color:var(--accent-hi); font-size:16px; text-align:center; }
+        .required-badge { font-size:10px; color:var(--red); margin-left:4px; font-weight:700; }
+
+        /* Result */
+        .result-box {
+            border-radius:var(--r); padding:24px; text-align:center;
+        }
+        .result-box.ok { background:var(--green-soft); border:1px solid var(--green); }
+        .result-box.err { background:var(--red-soft); border:1px solid var(--red); }
+        .result-big { font-size:32px; font-weight:700; margin:8px 0; }
+    </style>
+</head>
+<body>
+
+<div class="overlay" id="overlay"></div>
+
+<aside class="sidebar" id="sidebar">
+    <div class="s-logo">
+        <div class="s-mark">IX</div>
+        <span class="s-name">Ixtli</span>
+        <button class="s-close" id="sClose" aria-label="Cerrar">✕</button>
+    </div>
+    <nav class="s-nav">
+        <div class="s-section">Panel</div>
+        <a class="s-link" href="/">             <span class="s-icon">▦</span> Dashboard</a>
+        <a class="s-link" href="/app/ventas">   <span class="s-icon">💰</span> Ventas</a>
+        <a class="s-link" href="/app/productos"><span class="s-icon">📦</span> Productos</a>
+        <a class="s-link" href="/app/importar"> <span class="s-icon">📤</span> Importar CSV</a>
+    </nav>
+    <div class="s-footer">
+        <a class="s-link" href="/docs" target="_blank"><span class="s-icon">📚</span> API Docs</a>
+    </div>
+</aside>
+
+<div class="main">
+    <header class="header">
+        <button class="hamburger" id="burger" aria-label="Menú">☰</button>
+        <div class="h-title">Importar CSV <span>· Carga de ventas</span></div>
+        <div class="h-gap"></div>
+        <div class="h-status"><div class="status-dot"></div><span id="hTime">—</span></div>
+    </header>
+
+    <main class="content">
+
+        <div class="pg-head">
+            <div>
+                <div class="pg-title">Importar Archivo</div>
+                <div class="pg-sub">Carga tus ventas desde un archivo CSV o Excel</div>
+            </div>
+        </div>
+
+        <!-- Stepper -->
+        <div class="stepper">
+            <div class="step active" id="step1">
+                <div class="step-num">1</div>
+                <div class="step-label">Subir archivo</div>
+            </div>
+            <div class="step-line"></div>
+            <div class="step" id="step2">
+                <div class="step-num">2</div>
+                <div class="step-label">Mapear columnas</div>
+            </div>
+            <div class="step-line"></div>
+            <div class="step" id="step3">
+                <div class="step-num">3</div>
+                <div class="step-label">Resultado</div>
+            </div>
+        </div>
+
+        <div id="flashBanner" class="alert-banner"></div>
+
+        <!-- ── PASO 1: Upload ── -->
+        <div id="panelUpload">
+            <div class="dcard">
+                <div class="dcard-head">
+                    <div>
+                        <div class="dcard-title">Selecciona tu archivo</div>
+                        <div class="dcard-sub">Formatos aceptados: .csv, .xlsx, .xls</div>
+                    </div>
+                </div>
+                <div class="dcard-body">
+                    <div class="drop-zone" id="dropZone">
+                        <div class="drop-icon">📂</div>
+                        <div class="drop-title">Arrastra tu archivo aquí</div>
+                        <div class="drop-sub">o haz clic para seleccionarlo</div>
+                        <button class="btn btn-primary" type="button" id="btnSeleccionar">Seleccionar archivo</button>
+                        <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" style="display:none">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Historial de cargas -->
+            <div class="dcard" style="margin-top:16px">
+                <div class="dcard-head">
+                    <div>
+                        <div class="dcard-title">Historial de importaciones</div>
+                        <div class="dcard-sub">Cargas anteriores registradas</div>
+                    </div>
+                </div>
+                <div class="dcard-body">
+                    <div class="tbl-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Archivo</th>
+                                    <th>Fecha</th>
+                                    <th>Filas importadas</th>
+                                    <th>Ignoradas</th>
+                                    <th>Período</th>
+                                </tr>
+                            </thead>
+                            <tbody id="historialTbody">
+                                <tr><td colspan="5" class="empty">Cargando…</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── PASO 2: Mapeo ── -->
+        <div id="panelMapeo" style="display:none">
+            <div class="dcard">
+                <div class="dcard-head">
+                    <div>
+                        <div class="dcard-title">Vista previa del archivo</div>
+                        <div class="dcard-sub" id="previewSub">—</div>
+                    </div>
+                </div>
+                <div class="dcard-body">
+                    <div class="tbl-wrap">
+                        <table class="preview-table">
+                            <thead id="previewHead"></thead>
+                            <tbody id="previewBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="dcard" style="margin-top:16px">
+                <div class="dcard-head">
+                    <div>
+                        <div class="dcard-title">Mapeo de columnas</div>
+                        <div class="dcard-sub">Indica qué columna del archivo corresponde a cada campo del sistema</div>
+                    </div>
+                </div>
+                <div class="dcard-body">
+                    <div style="display:grid;grid-template-columns:1fr 28px 1fr;align-items:center;gap:10px 12px;margin-bottom:20px">
+                        <div style="font-size:11px;font-weight:700;color:var(--text-3);letter-spacing:.05em">COLUMNA DEL ARCHIVO</div>
+                        <div></div>
+                        <div style="font-size:11px;font-weight:700;color:var(--text-3);letter-spacing:.05em">CAMPO DEL SISTEMA</div>
+                        <!-- filas generadas por JS -->
+                        <div id="mappingRows" style="display:contents"></div>
+                    </div>
+                    <div style="display:flex;gap:10px;flex-wrap:wrap">
+                        <button class="btn btn-ghost" id="btnVolver">← Volver</button>
+                        <button class="btn btn-primary" id="btnConfirmar">Confirmar importación</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── PASO 3: Resultado ── -->
+        <div id="panelResultado" style="display:none">
+            <div class="dcard">
+                <div class="dcard-body" style="padding-top:20px">
+                    <div id="resultBox"></div>
+                    <div style="margin-top:20px;display:flex;gap:10px;justify-content:center">
+                        <button class="btn btn-primary" id="btnOtraImportacion">Importar otro archivo</button>
+                        <a href="/app/ventas" class="btn btn-ghost">Ver ventas →</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+</div>
+
+<script src="/js/common.js"></script>
+<script src="/js/importar.js"></script>
+</body>
+</html>

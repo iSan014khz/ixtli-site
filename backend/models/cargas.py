@@ -1,7 +1,7 @@
 # models/upload.py
 from sqlalchemy import Column, Integer, String, DateTime, Text
 from sqlalchemy.sql import func
-from database import Base
+from backend.database import Base
 
 class Carga(Base):
     __tablename__ = "cargas"

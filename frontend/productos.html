@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ixtli — Productos</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/app.css">
+    <style>
+        .prod-card {
+            background:var(--elevated); border:1px solid var(--border);
+            border-radius:12px; padding:16px; position:relative;
+            transition:border-color .2s;
+        }
+        .prod-card.alerta { border-color:rgba(239,68,68,.35); }
+        .prod-card:hover { border-color:var(--border-hi); }
+        .prod-card-name { font-size:14px; font-weight:600; margin-bottom:2px; }
+        .prod-card-cat { font-size:11.5px; color:var(--text-3); margin-bottom:12px; }
+        .prod-card-row { display:flex; justify-content:space-between; font-size:12px; margin-bottom:5px; }
+        .prod-card-row span:first-child { color:var(--text-2); }
+        .prod-card-row span:last-child { font-weight:600; }
+        .prod-card-actions { display:flex; gap:8px; margin-top:14px; }
+        .prods-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:14px; }
+        @media(max-width:480px) { .prods-grid { grid-template-columns:1fr 1fr; } }
+    </style>
+</head>
+<body>
+
+<div class="overlay" id="overlay"></div>
+
+<aside class="sidebar" id="sidebar">
+    <div class="s-logo">
+        <div class="s-mark">IX</div>
+        <span class="s-name">Ixtli</span>
+        <button class="s-close" id="sClose" aria-label="Cerrar">✕</button>
+    </div>
+    <nav class="s-nav">
+        <div class="s-section">Panel</div>
+        <a class="s-link" href="/">             <span class="s-icon">▦</span> Dashboard</a>
+        <a class="s-link" href="/app/ventas">   <span class="s-icon">💰</span> Ventas</a>
+        <a class="s-link" href="/app/productos"><span class="s-icon">📦</span> Productos</a>
+        <a class="s-link" href="/app/importar"> <span class="s-icon">📤</span> Importar CSV</a>
+    </nav>
+    <div class="s-footer">
+        <a class="s-link" href="/docs" target="_blank"><span class="s-icon">📚</span> API Docs</a>
+    </div>
+</aside>
+
+<!-- Modal crear / editar -->
+<div class="modal-bg" id="modalBg">
+    <div class="modal">
+        <button class="modal-close" id="modalClose" aria-label="Cerrar">✕</button>
+        <div class="modal-title" id="modalTitle">Nuevo Producto</div>
+        <div id="flashModal" class="alert-banner"></div>
+        <div class="modal-grid">
+            <div class="field"><label>Nombre *</label><input type="text" id="fNombre" placeholder="Coca-Cola 600ml"></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                <div class="field"><label>Categoría</label><input type="text" id="fCategoria" placeholder="Bebidas"></div>
+                <div class="field"><label>Unidad</label>
+                    <select id="fUnidad">
+                        <option value="pieza">Pieza</option>
+                        <option value="kg">Kilogramo</option>
+                        <option value="lt">Litro</option>
+                        <option value="caja">Caja</option>
+                        <option value="bolsa">Bolsa</option>
+                    </select>
+                </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                <div class="field"><label>Precio de venta</label><input type="number" id="fPrecio" min="0" step="0.01" placeholder="0.00"></div>
+                <div class="field"><label>Stock mínimo</label><input type="number" id="fStockMin" min="0" value="5"></div>
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-ghost" id="btnCancelar">Cancelar</button>
+            <button class="btn btn-primary" id="btnGuardar">Guardar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal confirmar eliminar -->
+<div class="modal-bg" id="modalDelete">
+    <div class="modal" style="max-width:360px">
+        <div class="modal-title" style="color:var(--red)">¿Eliminar producto?</div>
+        <p style="font-size:13px;color:var(--text-2);margin-bottom:20px">
+            Esta acción es permanente. Solo se puede eliminar si el producto no tiene ventas registradas.
+        </p>
+        <div style="font-size:14px;font-weight:600;margin-bottom:20px" id="deleteNombre">—</div>
+        <div id="flashDelete" class="alert-banner"></div>
+        <div class="modal-actions">
+            <button class="btn btn-ghost" id="btnCancelarDel">Cancelar</button>
+            <button class="btn btn-danger" id="btnConfirmarDel">Sí, eliminar</button>
+        </div>
+    </div>
+</div>
+
+<div class="main">
+    <header class="header">
+        <button class="hamburger" id="burger" aria-label="Menú">☰</button>
+        <div class="h-title">Productos <span>· Catálogo e inventario</span></div>
+        <div class="h-gap"></div>
+        <div class="h-status"><div class="status-dot"></div><span id="hTime">—</span></div>
+        <button class="h-btn" id="btnNuevo">+ Nuevo producto</button>
+    </header>
+
+    <main class="content">
+
+        <div class="pg-head">
+            <div>
+                <div class="pg-title">Catálogo de Productos</div>
+                <div class="pg-sub">Gestiona tu inventario y precios</div>
+            </div>
+        </div>
+
+        <!-- KPIs -->
+        <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
+            <div class="kpi blue">
+                <div class="kpi-top"><div class="kpi-label">Total productos</div><div class="kpi-ico blue">📦</div></div>
+                <div class="kpi-val" id="kTotal"><span class="skel" style="width:60px"></span></div>
+                <div class="kpi-meta">en catálogo</div>
+            </div>
+            <div class="kpi red">
+                <div class="kpi-top"><div class="kpi-label">Bajo mínimo</div><div class="kpi-ico red">⚠️</div></div>
+                <div class="kpi-val" id="kAlertas"><span class="skel" style="width:50px"></span></div>
+                <div class="kpi-meta">productos con alerta</div>
+            </div>
+            <div class="kpi green">
+                <div class="kpi-top"><div class="kpi-label">Stock OK</div><div class="kpi-ico green">✅</div></div>
+                <div class="kpi-val" id="kOk"><span class="skel" style="width:50px"></span></div>
+                <div class="kpi-meta">sobre el mínimo</div>
+            </div>
+        </div>
+
+        <!-- Filtros -->
+        <div class="filter-bar">
+            <label>Categoría</label>
+            <select id="fCateg">
+                <option value="">Todas</option>
+            </select>
+            <label style="margin-left:8px">Solo alertas</label>
+            <input type="checkbox" id="fSoloAlertas" style="width:16px;height:16px;cursor:pointer;accent-color:var(--accent)">
+            <div id="flashBanner" class="alert-banner" style="margin-left:auto"></div>
+        </div>
+
+        <!-- Grid de productos -->
+        <div class="prods-grid" id="prodsGrid">
+            <div class="prod-card"><div class="l-bar" style="width:80%;margin-bottom:10px"></div><div class="l-bar" style="width:60%"></div></div>
+            <div class="prod-card"><div class="l-bar" style="width:70%;margin-bottom:10px"></div><div class="l-bar" style="width:50%"></div></div>
+            <div class="prod-card"><div class="l-bar" style="width:90%;margin-bottom:10px"></div><div class="l-bar" style="width:65%"></div></div>
+        </div>
+
+    </main>
+</div>
+
+<script src="/js/common.js"></script>
+<script src="/js/productos.js"></script>
+</body>
+</html>

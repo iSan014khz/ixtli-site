@@ -1,8 +1,8 @@
-from fastapi import APIRouter, File, HTTPException
-from models import Producto
-from database import get_db
+from fastapi import APIRouter, HTTPException, Depends
+from backend.models import Producto
+from backend.database import get_db
+from backend.schemas.producto import ProductoCrear, ProductoActualizar
 from sqlalchemy.orm import Session
-from fastapi import Depends
 
 router = APIRouter(prefix="/productos", tags=["productos"])
 
@@ -25,6 +25,17 @@ def obtener_productos(categoria: str = None, db: Session = Depends(get_db)):
         "unidad": producto.unidad
         } for producto in productos]
 
+@router.get("/alertas")
+def obtener_alertas(db: Session = Depends(get_db)):
+    """Obtiene los productos con stock por debajo del mínimo"""
+    alertas = db.query(Producto).filter(Producto.stock_actual < Producto.stock_minimo).all()
+    return [{
+        "id": alerta.id,
+        "nombre": alerta.nombre,
+        "stock_actual": alerta.stock_actual,
+        "stock_minimo": alerta.stock_minimo
+    } for alerta in alertas]
+
 @router.get("/{id}")
 def obtener_producto(id: int, db: Session = Depends(get_db)):
     """Obtiene un producto por su ID"""
@@ -42,9 +53,9 @@ def obtener_producto(id: int, db: Session = Depends(get_db)):
     }
     
 @router.post("/")
-def crear_producto(producto: Producto, db: Session = Depends(get_db)):
+def crear_producto(producto: ProductoCrear, db: Session = Depends(get_db)):
     """Crea un nuevo producto"""
-    nuevo_producto = Producto(nombre=producto.nombre, categoria=producto.categoria, precio_venta=producto.precio_venta, stock_actual=producto.stock_actual, stock_minimo=producto.stock_minimo, unidad=producto.unidad)
+    nuevo_producto = Producto(nombre=producto.nombre, categoria=producto.categoria, precio_venta=producto.precio_venta, stock_actual=0, stock_minimo=producto.stock_minimo, unidad=producto.unidad)
     db.add(nuevo_producto)
     db.commit()
     db.refresh(nuevo_producto)
@@ -60,17 +71,21 @@ def crear_producto(producto: Producto, db: Session = Depends(get_db)):
     }
     
 @router.patch("/{id}")
-def actualizar_producto(id: int, producto: Producto, db: Session = Depends(get_db)):
+def actualizar_producto(id: int, producto: ProductoActualizar, db: Session = Depends(get_db)):
     """Actualiza un producto existente"""
     producto_existente = db.query(Producto).filter(Producto.id == id).first()
     if not producto_existente:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
-    producto_existente.nombre = producto.nombre
-    producto_existente.categoria = producto.categoria
-    producto_existente.precio_venta = producto.precio_venta
-    producto_existente.stock_actual = producto.stock_actual
-    producto_existente.stock_minimo = producto.stock_minimo
-    producto_existente.unidad = producto.unidad
+    if producto.nombre is not None:
+        producto_existente.nombre = producto.nombre
+    if producto.categoria is not None:
+        producto_existente.categoria = producto.categoria
+    if producto.precio_venta is not None:
+        producto_existente.precio_venta = producto.precio_venta
+    if producto.stock_minimo is not None:
+        producto_existente.stock_minimo = producto.stock_minimo
+    if producto.unidad is not None:
+        producto_existente.unidad = producto.unidad
     db.commit()
     db.refresh(producto_existente)
     
@@ -91,23 +106,19 @@ def eliminar_producto(id: int, db: Session = Depends(get_db)):
     producto_existente = db.query(Producto).filter(Producto.id == id).first()
     if not producto_existente:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
-    if producto_existente.ventas > 0:
+    if producto_existente.ventas:
         raise HTTPException(status_code=400, detail="Producto tiene ventas asociadas, no se puede eliminar")
     db.delete(producto_existente)
     db.commit()
 
     return {
         "estado": "OK",
-        "id": id
+        "id": id,
+        "nombre": producto_existente.nombre,
+        "categoria": producto_existente.categoria,
+        "precio_venta": producto_existente.precio_venta,
+        "stock_actual": producto_existente.stock_actual,
+        "stock_minimo": producto_existente.stock_minimo,
+        "unidad": producto_existente.unidad
     }
     
-@router.get("/alertas")
-def obtener_alertas(db: Session = Depends(get_db)):
-    """Obtiene las alertas de los productos"""
-    alertas = db.query(Producto).filter(Producto.stock_actual < Producto.stock_minimo).all()
-    return [{
-        "id": alerta.id,
-        "nombre": alerta.nombre,
-        "stock_actual": alerta.stock_actual,
-        "stock_minimo": alerta.stock_minimo
-    } for alerta in alertas ]

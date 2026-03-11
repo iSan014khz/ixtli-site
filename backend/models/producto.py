@@ -1,6 +1,7 @@
 # models/producto.py
 from sqlalchemy import Column, Integer, String, Float
-from database import Base
+from sqlalchemy.orm import relationship
+from backend.database import Base
 
 class Producto(Base):
     __tablename__ = "productos"
@@ -12,3 +13,5 @@ class Producto(Base):
     stock_actual  = Column(Integer, nullable=False, default=0)
     stock_minimo  = Column(Integer, nullable=False, default=5)  # umbral de alerta
     unidad        = Column(String, nullable=False, default="pieza")  # pieza, kg, lt
+
+    ventas        = relationship("Venta", back_populates="producto")

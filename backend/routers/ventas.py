@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
-from models import Venta, Producto
-from database import get_db
+from backend.models import Venta, Producto
+from backend.database import get_db
 from sqlalchemy.orm import Session
 from datetime import date, datetime
 from typing import Optional

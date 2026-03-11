@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ixtli — Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/app.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<div class="overlay" id="overlay"></div>
+
+<aside class="sidebar" id="sidebar">
+    <div class="s-logo">
+        <div class="s-mark">IX</div>
+        <span class="s-name">Ixtli</span>
+        <button class="s-close" id="sClose" aria-label="Cerrar">✕</button>
+    </div>
+    <nav class="s-nav">
+        <div class="s-section">Panel</div>
+        <a class="s-link" href="/">          <span class="s-icon">▦</span> Dashboard</a>
+        <a class="s-link" href="/app/ventas"><span class="s-icon">💰</span> Ventas</a>
+        <a class="s-link" href="/app/productos"><span class="s-icon">📦</span> Productos</a>
+        <a class="s-link" href="/app/importar"><span class="s-icon">📤</span> Importar CSV</a>
+        <div class="s-section">Análisis</div>
+        <a class="s-link" href="#stock">  <span class="s-icon">🔄</span> Inventario</a>
+        <a class="s-link" href="#alertas"><span class="s-icon">⚠️</span> Alertas
+            <span class="s-badge" id="sBadge" style="display:none">0</span>
+        </a>
+    </nav>
+    <div class="s-footer">
+        <a class="s-link" href="/docs" target="_blank"><span class="s-icon">📚</span> API Docs</a>
+    </div>
+</aside>
+
+<div class="main">
+    <header class="header">
+        <button class="hamburger" id="burger" aria-label="Menú">☰</button>
+        <div class="h-title">Panel de Control <span>· Abarrotes Ixtli</span></div>
+        <div class="h-gap"></div>
+        <div class="h-status"><div class="status-dot"></div><span id="hTime">—</span></div>
+        <button class="h-btn" id="refreshBtn">↻ Actualizar</button>
+    </header>
+
+    <main class="content">
+
+        <div class="pg-head">
+            <div>
+                <div class="pg-title">Resumen General</div>
+                <div class="pg-sub">Métricas descriptivas, diagnósticas y predictivas</div>
+            </div>
+            <div class="pg-update">Actualizado: <span id="lastUp">—</span></div>
+        </div>
+
+        <!-- KPI Row -->
+        <div class="kpi-grid">
+            <div class="kpi blue">
+                <div class="kpi-top"><div class="kpi-label">Ventas Hoy</div><div class="kpi-ico blue">💰</div></div>
+                <div class="kpi-val" id="kVentas"><span class="skel" style="width:110px"></span></div>
+                <div class="kpi-meta" id="kVentasMeta">cargando…</div>
+            </div>
+            <div class="kpi cyan">
+                <div class="kpi-top"><div class="kpi-label">Transacciones</div><div class="kpi-ico cyan">🧾</div></div>
+                <div class="kpi-val" id="kTxs"><span class="skel" style="width:70px"></span></div>
+                <div class="kpi-meta">ventas registradas hoy</div>
+            </div>
+            <div class="kpi green">
+                <div class="kpi-top"><div class="kpi-label">Ticket Promedio</div><div class="kpi-ico green">📊</div></div>
+                <div class="kpi-val" id="kTicket"><span class="skel" style="width:90px"></span></div>
+                <div class="kpi-meta">por transacción hoy</div>
+            </div>
+            <div class="kpi red">
+                <div class="kpi-top"><div class="kpi-label">Alertas de Stock</div><div class="kpi-ico red">⚠️</div></div>
+                <div class="kpi-val" id="kAlertas"><span class="skel" style="width:55px"></span></div>
+                <div class="kpi-meta">productos bajo mínimo</div>
+            </div>
+        </div>
+
+        <!-- Ventas + Top productos -->
+        <div class="row-wide">
+            <div class="dcard">
+                <div class="dcard-head">
+                    <div>
+                        <div class="dcard-title">Ventas por Período</div>
+                        <div class="dcard-sub">Ingresos acumulados — ¿Cómo voy?</div>
+                    </div>
+                    <div class="ptabs" id="vTabs">
+                        <button class="ptab" data-v="dia">Día</button>
+                        <button class="ptab active" data-v="semana">Semana</button>
+                        <button class="ptab" data-v="mes">Mes</button>
+                    </div>
+                </div>
+                <div class="ch-wrap"><div class="ch-h240"><canvas id="ventasChart"></canvas></div></div>
+            </div>
+            <div class="dcard">
+                <div class="dcard-head">
+                    <div>
+                        <div class="dcard-title">Top Productos</div>
+                        <div class="dcard-sub">Por unidades vendidas — ¿Qué me mueve?</div>
+                    </div>
+                </div>
+                <div class="dcard-body" id="topList">
+                    <div class="loading-list">
+                        <div class="l-bar" style="width:100%"></div>
+                        <div class="l-bar" style="width:85%"></div>
+                        <div class="l-bar" style="width:72%"></div>
+                        <div class="l-bar" style="width:60%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Ticket + Alertas -->
+        <div class="row-half">
+            <div class="dcard">
+                <div class="dcard-head">
+                    <div>
+                        <div class="dcard-title">Ticket Promedio</div>
+                        <div class="dcard-sub">Valor por transacción — ¿Estoy creciendo?</div>
+                    </div>
+                    <div class="ptabs" id="tTabs">
+                        <button class="ptab active" data-t="dia">Día</button>
+                        <button class="ptab" data-t="semana">Semana</button>
+                        <button class="ptab" data-t="mes">Mes</button>
+                    </div>
+                </div>
+                <div class="ch-wrap"><div class="ch-h200"><canvas id="ticketChart"></canvas></div></div>
+            </div>
+            <div class="dcard" id="alertas">
+                <div class="dcard-head">
+                    <div>
+                        <div class="dcard-title">Alertas de Stock</div>
+                        <div class="dcard-sub">Productos bajo el mínimo establecido</div>
+                    </div>
+                </div>
+                <div class="dcard-body" id="alertasList">
+                    <div class="loading-list">
+                        <div class="l-bar" style="width:100%"></div>
+                        <div class="l-bar" style="width:88%"></div>
+                        <div class="l-bar" style="width:76%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Rotación / Stock crítico -->
+        <div class="dcard" id="stock">
+            <div class="dcard-head">
+                <div>
+                    <div class="dcard-title">Rotación e Inventario Crítico</div>
+                    <div class="dcard-sub">Clasificación predictiva por días de stock estimados — ¿Qué problema viene?</div>
+                </div>
+            </div>
+            <hr class="stock-divider">
+            <div class="stock-cols" id="stockCols">
+                <div>
+                    <div class="stock-col-head critico"><div class="col-dot"></div> Crítico · ≤3 días</div>
+                    <div id="colC"><div class="s-empty">Cargando…</div></div>
+                </div>
+                <div>
+                    <div class="stock-col-head alerta"><div class="col-dot"></div> Alerta · 4–7 días</div>
+                    <div id="colA"><div class="s-empty">Cargando…</div></div>
+                </div>
+                <div>
+                    <div class="stock-col-head vigilar"><div class="col-dot"></div> Vigilar · 8–30 días</div>
+                    <div id="colV"><div class="s-empty">Cargando…</div></div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+</div>
+
+<script src="/js/common.js"></script>
+<script src="/js/dashboard.js"></script>
+</body>
+</html>
