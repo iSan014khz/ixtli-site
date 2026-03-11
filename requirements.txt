@@ -1,0 +1,17 @@
+# ── Web Framework ──
+fastapi==0.115.0
+uvicorn==0.30.6
+
+# ── Validación de datos ──
+pydantic==2.8.2
+
+# ── Base de datos ──
+sqlalchemy==2.0.35
+
+# ── Análisis de datos ──
+pandas==2.2.3
+openpyxl==3.1.5        # leer archivos .xlsx
+python-multipart==0.0.12  # para recibir UploadFile en FastAPI
+
+# ── Utilidades ──
+python-dateutil==2.9.0  # parseo flexible de fechas

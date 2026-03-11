@@ -1,0 +1,6 @@
+producto_nombre está desnormalizado en ventas. Normalmente en BD relacional pura solo guardarías producto_id. Pero aquí guardas también el nombre directamente porque si el usuario elimina un producto en el futuro, sus ventas históricas no deben perder ese dato. Es una decisión deliberada, no un error.
+server_default=func.now() vs default=.  server_default deja que SQLite ponga el timestamp — más confiable porque no depende de que Python lo pase. default= en cambio se ejecuta en Python antes de insertar.
+check_same_thread=False es exclusivo de SQLite. Por defecto SQLite prohíbe usar la misma conexión desde distintos threads, pero FastAPI es async y puede hacerlo — este flag lo permite de forma segura.
+get_db() usa yield. Eso lo convierte en un generador que FastAPI usa como dependencia inyectable. La sesión se abre antes del yield y se cierra en el finally sin importar si el endpoint falló o no. Lo usarás así en tus routers:
+
+La regla es simple: los routers importan schemas, nunca los definen.

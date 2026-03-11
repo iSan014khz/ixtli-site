@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rockart Dashboard</title>
+    <!-- <link rel="stylesheet" href="dasboard.css"> -->
+    <link rel="stylesheet" href="index.css">
+</head>
+
+<body>
+    <div class="screen">
+        <!-- Barra lateral -->
+        <aside class="side-bar">
+            <div class="logo">
+                <span class="logo-icon"></span>
+                <span class="logo-text">Rockart</span>
+            </div>
+            <nav class="sidebar-nav">
+                <p class="nav-section-title">MAIN MENU</p>
+                <ul class="nav-list">
+                    <li class="nav-item active"><span class="nav-icon">◉</span> Overview</li>
+                    <li class="nav-item"><span class="nav-icon">▢</span> Products</li>
+                    <li class="nav-item"><span class="nav-icon">▢</span> Stores</li>
+                    <li class="nav-item"><span class="nav-icon">▢</span> Customers</li>
+                    <li class="nav-item"><span class="nav-icon">▢</span> Transaction</li>
+                    <li class="nav-item"><span class="nav-icon">▢</span> Analytics</li>
+                    <li class="nav-item"><span class="nav-icon">▢</span> Log Activity</li>
+                </ul>
+                <hr class="nav-separator">
+                <p class="nav-section-title">PREFERENCE</p>
+                <ul class="nav-list">
+                    <li class="nav-item"><span class="nav-icon">?</span> Help Center</li>
+                    <li class="nav-item"><span class="nav-icon">⚙</span> Settings</li>
+                </ul>
+            </nav>
+        </aside>
+
+        <div class="main-area">
+            <!-- Header bar -->
+            <header class="header-bar">
+                <div class="header-left">
+                    <span class="header-brand">🔒 rockart.dashboard</span>
+                </div>
+                <div class="header-spacer"></div>
+                <div class="header-right">
+                    <div class="search-wrap">
+                        <span class="search-icon">🔍</span>
+                        <input type="search" class="search-input" placeholder="Search anything..." aria-label="Buscar">
+                    </div>
+                    <button type="button" class="theme-toggle" id="themeToggle" aria-label="Cambiar tema (claro/oscuro)">
+                        <span class="theme-icon dark-icon">🌙</span>
+                        <span class="theme-icon light-icon">☀️</span>
+                    </button>
+                    <button type="button" class="icon-btn notifications" aria-label="Notificaciones">🔔</button>
+                    <button type="button" class="icon-btn profile" aria-label="Perfil">👤</button>
+                </div>
+            </header>
+
+            <!-- Contenido principal -->
+            <main class="dashboard-container">
+            <section class="welcome-section">
+                <h1 class="welcome-title">Good to see you, Michelle!</h1>
+                <p class="welcome-subtitle">Improve your sales management for better growth</p>
+            </section>
+
+            <div class="period-selector">
+                <button type="button" class="period-btn">Last 24 hour</button>
+                <button type="button" class="period-btn">Last weeks</button>
+                <button type="button" class="period-btn active">Last month</button>
+                <button type="button" class="period-btn">Last year</button>
+            </div>
+
+            <section class="content-cards">
+                <article class="card recent-orders">
+                    <div class="card-header">
+                        <div>
+                            <h2 class="card-title">Recent Order</h2>
+                            
+                            <p class="card-subtitle">Your sales statistic report</p>
+                        </div>
+                        <button type="button" class="btn-filter">Filter</button>
+                    </div>
+                    <div class="card-body">
+                        <!-- Contenido de la tabla o lista de pedidos iría aquí -->
+                    </div>
+                </article>
+
+                <article class="card top-product">
+                    <div class="card-header">
+                        <div>
+                            <h2 class="card-title">Top Product</h2>
+                            <p class="card-subtitle">Based on total sold</p>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <!-- Contenido del top de productos iría aquí -->
+                    </div>
+                </article>
+            </section>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            const html = document.documentElement;
+            const themeToggle = document.getElementById('themeToggle');
+            const STORAGE_KEY = 'rockart-theme';
+
+            function setTheme(theme) {
+                html.setAttribute('data-theme', theme);
+                themeToggle.setAttribute('aria-label', theme === 'dark' ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro');
+                try { localStorage.setItem(STORAGE_KEY, theme); } catch (e) {}
+            }
+
+            themeToggle.addEventListener('click', function () {
+                const current = html.getAttribute('data-theme');
+                const next = current === 'dark' ? 'light' : 'dark';
+                setTheme(next);
+            });
+
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved === 'light' || saved === 'dark') setTheme(saved);
+        })();
+    </script>
+</body>
+
+</html>

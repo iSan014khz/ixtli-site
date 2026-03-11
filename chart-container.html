@@ -1,0 +1,1037 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            min-height: 100vh;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-start;
+            justify-content: center;
+            gap: 24px;
+            background: #0d0d0d;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            padding: 24px;
+        }
+
+        .stock-card {
+            width: 100%;
+            max-width: 420px;
+            background: #1a1a1a;
+            border-radius: 16px;
+            box-shadow: 8px 8px 24px rgba(0, 0, 0, 0.4);
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Esquina superior derecha con corte/curva */
+        .stock-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 24px;
+            height: 24px;
+            background: #0d0d0d;
+            border-radius: 0 0 0 100%;
+            z-index: 0;
+        }
+
+        .stock-card-inner {
+            padding: 20px 20px 16px;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Cabecera: logo, nombre, ticker, menú */
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .company-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-wrap {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: #1a1a1a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 0 2px rgba(255, 193, 7, 0.5), 0 0 16px rgba(255, 193, 7, 0.25);
+        }
+
+        .logo-wrap img {
+            width: 28px;
+            height: 28px;
+            object-fit: contain;
+        }
+
+        .logo-placeholder {
+            width: 28px;
+            height: 28px;
+            background: linear-gradient(135deg, #76b900 0%, #5a8f00 100%);
+            border-radius: 50%;
+            position: relative;
+        }
+
+        .logo-placeholder::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 10px;
+            height: 6px;
+            border: 2px solid #1a1a1a;
+            border-top: none;
+            border-radius: 0 0 50% 50%;
+        }
+
+        .company-text h1 {
+            font-size: 18px;
+            font-weight: 700;
+            color: #fff;
+            letter-spacing: -0.02em;
+        }
+
+        .company-text .ticker {
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.6);
+            font-weight: 500;
+            margin-top: 2px;
+        }
+
+        .menu-btn {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: 18px;
+            letter-spacing: 2px;
+            cursor: pointer;
+            background: none;
+            border: none;
+        }
+
+        /* Precio y cambio */
+        .price-row {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            margin-bottom: 14px;
+        }
+
+        .price-main {
+            font-size: 32px;
+            font-weight: 700;
+            color: #fff;
+            letter-spacing: -0.02em;
+        }
+
+        .change-block {
+            text-align: right;
+        }
+
+        .change-abs {
+            display: inline-block;
+            background: #ffc107;
+            color: #1a1a1a;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 4px 8px;
+            border-radius: 6px;
+            margin-bottom: 4px;
+        }
+
+        .change-pct {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #ffc107;
+        }
+
+        .change-pct::before {
+            content: '';
+            width: 6px;
+            height: 6px;
+            background: #ffc107;
+            border-radius: 50%;
+        }
+
+        /* Gráfico */
+        .chart-section {
+            background: #252525;
+            border-radius: 12px;
+            padding: 12px 14px 10px;
+            margin-bottom: 14px;
+            position: relative;
+        }
+
+        .chart-title-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .chart-title {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.6);
+            font-weight: 500;
+        }
+
+        .chart-badge {
+            background: #ffc107;
+            color: #1a1a1a;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 3px 8px;
+            border-radius: 6px;
+        }
+
+        .chart-area {
+            height: 80px;
+            position: relative;
+        }
+
+        .chart-area svg {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .chart-times {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 6px;
+            padding: 0 2px;
+        }
+
+        .chart-times span {
+            font-size: 10px;
+            color: rgba(255, 255, 255, 0.5);
+            font-weight: 500;
+        }
+
+        /* Línea vertical discontinua */
+        .chart-section::after {
+            content: '';
+            position: absolute;
+            right: 24px;
+            top: 44px;
+            bottom: 32px;
+            width: 1px;
+            background: repeating-linear-gradient(
+                to bottom,
+                rgba(255, 255, 255, 0.15) 0,
+                rgba(255, 255, 255, 0.15) 4px,
+                transparent 4px,
+                transparent 8px
+            );
+        }
+
+        /* Pie: Open, USD, Key Events */
+        .card-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-around;
+            gap: 8px;
+            padding-top: 4px;
+        }
+
+        .footer-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #fff;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            padding: 6px 10px;
+            border-radius: 8px;
+            transition: background 0.2s;
+        }
+
+        .footer-item:hover {
+            background: rgba(255, 193, 7, 0.1);
+        }
+
+        .footer-item svg {
+            width: 18px;
+            height: 18px;
+            flex-shrink: 0;
+        }
+
+        /* ========== Cash Flow Card ========== */
+        .cashflow-card {
+            width: 100%;
+            max-width: 480px;
+            background: #1a1a1a;
+            border-radius: 16px;
+            box-shadow: 8px 8px 24px rgba(0, 0, 0, 0.4);
+            padding: 20px 20px 18px;
+        }
+
+        .cashflow-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+
+        .cashflow-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 4px;
+        }
+
+        .cashflow-total {
+            font-size: 28px;
+            font-weight: 700;
+            color: #fff;
+            letter-spacing: -0.02em;
+        }
+
+        .period-tabs {
+            display: flex;
+            background: #252525;
+            border-radius: 999px;
+            padding: 4px;
+            gap: 2px;
+        }
+
+        .period-tab {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 999px;
+            font-size: 13px;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            transition: background 0.2s, color 0.2s;
+        }
+
+        .period-tab.monthly {
+            background: #fff;
+            color: #333;
+        }
+
+        .period-tab.yearly {
+            background: #ff6b35;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .period-tab.yearly::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            background: #fff;
+            border-radius: 50%;
+            box-shadow: inset 0 0 0 2px #ff6b35;
+        }
+
+        .cashflow-chart-wrap {
+            position: relative;
+            padding-left: 36px;
+            padding-bottom: 28px;
+        }
+
+        .cashflow-y-axis {
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 28px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            font-size: 11px;
+            font-weight: 500;
+            color: #fff;
+        }
+
+        .cashflow-bars {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            gap: 8px;
+            height: 140px;
+        }
+
+        .cashflow-bar-wrap {
+            flex: 1;
+            align-self: stretch;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-end;
+            position: relative;
+        }
+
+        .cashflow-bar-container {
+            width: 100%;
+            height: 124px;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .cashflow-bar-wrap:hover .cashflow-tooltip {
+            opacity: 1;
+        }
+
+        .cashflow-bar-wrap:hover .cashflow-bar {
+            background: linear-gradient(180deg, #ff7b4a 0%, #e85a2a 50%, #c94a22 100%);
+        }
+
+        .cashflow-bar-wrap:hover .cashflow-bar-dot {
+            opacity: 1;
+        }
+
+        .cashflow-bar-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #fff;
+            border: 2px solid #ff6b35;
+            margin-bottom: 4px;
+            opacity: 0;
+            transition: opacity 0.2s;
+            flex-shrink: 0;
+        }
+
+        .cashflow-bar {
+            width: 100%;
+            max-width: 32px;
+            min-height: 8px;
+            border-radius: 8px 8px 0 0;
+            background: #333;
+            transition: background 0.2s;
+            flex-shrink: 0;
+        }
+
+        .cashflow-x-axis {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 8px;
+            padding: 0 4px;
+            font-size: 11px;
+            font-weight: 500;
+            color: #fff;
+        }
+
+        .cashflow-tooltip {
+            position: absolute;
+            left: 50%;
+            bottom: 100%;
+            transform: translateX(-50%) translateY(-12px);
+            background: #252525;
+            border-radius: 10px;
+            padding: 12px 14px;
+            min-width: 180px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s;
+            z-index: 10;
+        }
+
+        .cashflow-tooltip-date {
+            font-size: 12px;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 8px;
+        }
+
+        .cashflow-tooltip-row {
+            font-size: 12px;
+            color: #fff;
+            margin-bottom: 4px;
+        }
+
+        .cashflow-tooltip-row:last-child {
+            margin-bottom: 0;
+        }
+
+        /* ========== Your Balance Card ========== */
+        .balance-card {
+            width: 100%;
+            max-width: 460px;
+            background: linear-gradient(145deg, rgba(20, 25, 35, 0.95) 0%, rgba(15, 20, 30, 0.98) 100%);
+            border: 1px solid rgba(100, 140, 200, 0.15);
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.03);
+            padding: 20px 20px 18px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .balance-card::before {
+            content: '';
+            position: absolute;
+            top: -100px;
+            left: -100px;
+            width: 320px;
+            height: 320px;
+            background: radial-gradient(
+                circle,
+                rgba(140, 200, 255, 0.75) 0%,
+                rgba(100, 175, 255, 0.55) 18%,
+                rgba(91, 156, 244, 0.4) 35%,
+                rgba(70, 140, 230, 0.28) 50%,
+                rgba(55, 120, 210, 0.18) 65%,
+                rgba(45, 100, 195, 0.1) 80%,
+                transparent 100%
+            );
+            filter: blur(48px);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .balance-card > * {
+            position: relative;
+            z-index: 1;
+        }
+
+        .balance-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            margin-bottom: 18px;
+        }
+
+        .balance-label {
+            font-size: 13px;
+            font-weight: 500;
+            color: rgba(255, 255, 255, 0.55);
+            margin-bottom: 4px;
+        }
+
+        .balance-amount {
+            font-size: 28px;
+            font-weight: 700;
+            color: #fff;
+            letter-spacing: -0.02em;
+        }
+
+        .balance-change {
+            font-size: 15px;
+            font-weight: 600;
+            color: #5b9cf4;
+        }
+
+        .balance-filters {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 18px;
+            flex-wrap: wrap;
+        }
+
+        .balance-filter {
+            padding: 8px 14px;
+            border: none;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            background: rgba(255, 255, 255, 0.08);
+            color: #fff;
+            transition: background 0.2s, color 0.2s;
+        }
+
+        .balance-filter:hover {
+            background: rgba(255, 255, 255, 0.12);
+        }
+
+        .balance-filter.active {
+            background: #5b9cf4;
+            color: #fff;
+        }
+
+        .balance-chart-wrap {
+            position: relative;
+            height: 120px;
+            display: flex;
+            align-items: flex-end;
+            gap: 3px;
+        }
+
+        .balance-bar-wrap {
+            flex: 1;
+            min-width: 0;
+            height: 100%;
+            align-self: stretch;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-end;
+            position: relative;
+        }
+
+        .balance-bar-wrap:hover .balance-tooltip {
+        .balance-bar-wrap.highlighted .balance-bar {
+            background: linear-gradient(180deg, #6eb0ff 0%, #4a90e2 100%);
+            box-shadow: 0 0 12px rgba(91, 156, 244, 0.5);
+        }
+
+        .balance-bar-wrap.highlighted .balance-bar-dot {
+            opacity: 1;
+        }
+
+        .balance-bar-wrap.highlighted .balance-tooltip {
+            opacity: 1;
+        }
+
+        .balance-bar-wrap.highlighted .balance-bar {
+            background: linear-gradient(180deg, #6eb0ff 0%, #4a90e2 100%);
+            box-shadow: 0 0 12px rgba(91, 156, 244, 0.5);
+        }
+
+        .balance-bar-wrap.highlighted .balance-bar-dot {
+            opacity: 1;
+        }
+
+        .balance-bar-wrap.highlighted .balance-tooltip {
+            opacity: 1;
+        }
+
+        .balance-bar-wrap.highlighted .balance-bar {
+            background: linear-gradient(180deg, #6eb0ff 0%, #4a90e2 100%);
+            box-shadow: 0 0 12px rgba(91, 156, 244, 0.5);
+        }
+
+        .balance-bar-wrap.highlighted .balance-bar-dot {
+            opacity: 1;
+        }
+
+        .balance-bar-wrap.highlighted .balance-tooltip {
+            opacity: 1;
+        }
+
+            opacity: 1;
+        }
+
+        .balance-bar-wrap:hover .balance-bar {
+            background: linear-gradient(180deg, #6eb0ff 0%, #4a90e2 100%);
+            box-shadow: 0 0 12px rgba(91, 156, 244, 0.5);
+        }
+
+        .balance-bar-wrap:hover .balance-bar::after {
+            animation: balance-glow-sweep 1.1s ease-out forwards;
+            opacity: 1;
+        }
+
+        .balance-bar-wrap:hover .balance-bar-dot {
+            opacity: 1;
+        }
+
+        .balance-bar-container {
+            width: 100%;
+            height: 100px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+        }
+
+        .balance-bar {
+            width: 100%;
+            max-width: 12px;
+            min-height: 4px;
+            border-radius: 4px 4px 0 0;
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.06) 100%);
+            transition: background 0.2s, box-shadow 0.2s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .balance-bar::after {
+            content: '';
+            position: absolute;
+            left: -2px;
+            right: -2px;
+            height: 50%;
+            bottom: 0;
+            background: linear-gradient(
+                to top,
+                transparent 0%,
+                rgba(120, 190, 255, 0.25) 25%,
+                rgba(200, 230, 255, 0.7) 50%,
+                rgba(120, 190, 255, 0.25) 75%,
+                transparent 100%
+            );
+            border-radius: 4px;
+            box-shadow: 0 0 14px rgba(180, 220, 255, 0.6);
+            transform: translateY(0);
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        @keyframes balance-glow-sweep {
+            0% {
+                transform: translateY(0);
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(-350%);
+                opacity: 0.3;
+            }
+        }
+
+        .balance-bar-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #5b9cf4;
+            margin-bottom: 2px;
+            opacity: 0;
+            transition: opacity 0.2s;
+            flex-shrink: 0;
+        }
+
+        .balance-tooltip {
+            position: absolute;
+            left: 50%;
+            bottom: 100%;
+            transform: translateX(-50%) translateY(-8px);
+            background: rgba(40, 45, 55, 0.95);
+            border-radius: 8px;
+            padding: 8px 12px;
+            min-width: 80px;
+            text-align: center;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s;
+            z-index: 10;
+        }
+
+        .balance-tooltip-date {
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.6);
+            margin-bottom: 4px;
+        }
+
+        .balance-tooltip-amount {
+            font-size: 14px;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .balance-chart-label {
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.5);
+            margin-bottom: 6px;
+        }
+
+        .balance-x-axis {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 8px;
+            padding: 0 2px;
+            font-size: 10px;
+            font-weight: 500;
+            color: rgba(255, 255, 255, 0.5);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Tarjeta Cash Flow -->
+    <!-- <div class="cashflow-card">
+        <div class="cashflow-header">
+            <div>
+                <div class="cashflow-title">Cash Flow</div>
+                <div class="cashflow-total">$540,323.45</div>
+            </div>
+            <div class="period-tabs">
+                <button type="button" class="period-tab monthly">Monthly</button>
+                <button type="button" class="period-tab yearly">Yearly</button>
+            </div>
+        </div>
+        <div class="cashflow-chart-wrap">
+            <div class="cashflow-y-axis">
+                <span>50k</span>
+                <span>40k</span>
+                <span>30k</span>
+                <span>20k</span>
+                <span>10k</span>
+                <span>0k</span>
+            </div>
+            <div class="cashflow-bars">
+                <div class="cashflow-bar-wrap">
+                    <span class="cashflow-bar-dot"></span>
+                    <div class="cashflow-bar-container">
+                        <div class="cashflow-bar" style="height: 58%;"></div>
+                    </div>
+                    <div class="cashflow-tooltip">
+                        <div class="cashflow-tooltip-date">January 23, 2026</div>
+                        <div class="cashflow-tooltip-row">Cashflow: $29,200.00</div>
+                        <div class="cashflow-tooltip-row">Inflow: -$5,120.00</div>
+                    </div>
+                </div>
+                <div class="cashflow-bar-wrap">
+                    <span class="cashflow-bar-dot"></span>
+                    <div class="cashflow-bar-container">
+                        <div class="cashflow-bar" style="height: 48%;"></div>
+                    </div>
+                    <div class="cashflow-tooltip">
+                        <div class="cashflow-tooltip-date">February 23, 2026</div>
+                        <div class="cashflow-tooltip-row">Cashflow: $24,100.00</div>
+                        <div class="cashflow-tooltip-row">Inflow: -$6,300.00</div>
+                    </div>
+                </div>
+                <div class="cashflow-bar-wrap">
+                    <span class="cashflow-bar-dot"></span>
+                    <div class="cashflow-bar-container">
+                        <div class="cashflow-bar" style="height: 88%;"></div>
+                    </div>
+                    <div class="cashflow-tooltip">
+                        <div class="cashflow-tooltip-date">July 23, 2026</div>
+                        <div class="cashflow-tooltip-row">Cashflow: $33,847.00</div>
+                        <div class="cashflow-tooltip-row">Inflow: -$7,456.00</div>
+                    </div>
+                </div>
+                <div class="cashflow-bar-wrap">
+                    <span class="cashflow-bar-dot"></span>
+                    <div class="cashflow-bar-container">
+                        <div class="cashflow-bar" style="height: 42%;"></div>
+                    </div>
+                    <div class="cashflow-tooltip">
+                        <div class="cashflow-tooltip-date">April 23, 2026</div>
+                        <div class="cashflow-tooltip-row">Cashflow: $21,050.00</div>
+                        <div class="cashflow-tooltip-row">Inflow: -$4,200.00</div>
+                    </div>
+                </div>
+                <div class="cashflow-bar-wrap">
+                    <span class="cashflow-bar-dot"></span>
+                    <div class="cashflow-bar-container">
+                        <div class="cashflow-bar" style="height: 68%;"></div>
+                    </div>
+                    <div class="cashflow-tooltip">
+                        <div class="cashflow-tooltip-date">May 23, 2026</div>
+                        <div class="cashflow-tooltip-row">Cashflow: $34,100.00</div>
+                        <div class="cashflow-tooltip-row">Inflow: -$8,100.00</div>
+                    </div>
+                </div>
+                <div class="cashflow-bar-wrap">
+                    <span class="cashflow-bar-dot"></span>
+                    <div class="cashflow-bar-container">
+                        <div class="cashflow-bar" style="height: 52%;"></div>
+                    </div>
+                    <div class="cashflow-tooltip">
+                        <div class="cashflow-tooltip-date">June 23, 2026</div>
+                        <div class="cashflow-tooltip-row">Cashflow: $26,400.00</div>
+                        <div class="cashflow-tooltip-row">Inflow: -$5,800.00</div>
+                    </div>
+                </div>
+                <div class="cashflow-bar-wrap">
+                    <span class="cashflow-bar-dot"></span>
+                    <div class="cashflow-bar-container">
+                        <div class="cashflow-bar" style="height: 38%;"></div>
+                    </div>
+                    <div class="cashflow-tooltip">
+                        <div class="cashflow-tooltip-date">July 23, 2026</div>
+                        <div class="cashflow-tooltip-row">Cashflow: $19,200.00</div>
+                        <div class="cashflow-tooltip-row">Inflow: -$3,500.00</div>
+                    </div>
+                </div>
+            </div>
+            <div class="cashflow-x-axis">
+                <span>Jan</span>
+                <span>Feb</span>
+                <span>Mar</span>
+                <span>Apr</span>
+                <span>May</span>
+                <span>Jun</span>
+                <span>Jul</span>
+            </div>
+        </div>
+    </div> -->
+
+    <!-- Tarjeta Ventas del año -->
+    <div class="balance-card">
+        <div class="balance-header">
+            <div>
+                <div class="balance-label">Ventas del año</div>
+                <div class="balance-amount">$284.750</div>
+            </div>
+            <div class="balance-change">↑12.4%</div>
+        </div>
+        <div class="balance-filters">
+            <button type="button" class="balance-filter">TODO</button>
+            <button type="button" class="balance-filter">1S</button>
+            <button type="button" class="balance-filter active">1M</button>
+            <button type="button" class="balance-filter">6M</button>
+            <button type="button" class="balance-filter">1A</button>
+        </div>
+        <div class="balance-chart-label">Ventas por mes</div>
+        <div class="balance-chart-wrap">
+            <div class="balance-bar-wrap">
+                <span class="balance-bar-dot"></span>
+                <div class="balance-bar-container">
+                    <div class="balance-bar" style="height: 72%;"></div>
+                </div>
+                <div class="balance-tooltip">
+                    <div class="balance-tooltip-date">Ene 2025</div>
+                    <div class="balance-tooltip-amount">$28.400</div>
+                </div>
+            </div>
+            <div class="balance-bar-wrap">
+                <span class="balance-bar-dot"></span>
+                <div class="balance-bar-container">
+                    <div class="balance-bar" style="height: 65%;"></div>
+                </div>
+                <div class="balance-tooltip">
+                    <div class="balance-tooltip-date">Feb 2025</div>
+                    <div class="balance-tooltip-amount">$25.200</div>
+                </div>
+            </div>
+            <div class="balance-bar-wrap">
+                <span class="balance-bar-dot"></span>
+                <div class="balance-bar-container">
+                    <div class="balance-bar" style="height: 88%;"></div>
+                </div>
+                <div class="balance-tooltip">
+                    <div class="balance-tooltip-date">Mar 2025</div>
+                    <div class="balance-tooltip-amount">$32.100</div>
+                </div>
+            </div>
+            <div class="balance-bar-wrap">
+                <span class="balance-bar-dot"></span>
+                <div class="balance-bar-container">
+                    <div class="balance-bar" style="height: 78%;"></div>
+                </div>
+                <div class="balance-tooltip">
+                    <div class="balance-tooltip-date">Abr 2025</div>
+                    <div class="balance-tooltip-amount">$28.900</div>
+                </div>
+            </div>
+            <div class="balance-bar-wrap">
+                <span class="balance-bar-dot"></span>
+                <div class="balance-bar-container">
+                    <div class="balance-bar" style="height: 82%;"></div>
+                </div>
+                <div class="balance-tooltip">
+                    <div class="balance-tooltip-date">May 2025</div>
+                    <div class="balance-tooltip-amount">$30.200</div>
+                </div>
+            </div>
+            <div class="balance-bar-wrap">
+                <span class="balance-bar-dot"></span>
+                <div class="balance-bar-container">
+                    <div class="balance-bar" style="height: 75%;"></div>
+                </div>
+                <div class="balance-tooltip">
+                    <div class="balance-tooltip-date">Jun 2025</div>
+                    <div class="balance-tooltip-amount">$27.500</div>
+                </div>
+            </div>
+            <div class="balance-bar-wrap">
+                <span class="balance-bar-dot"></span>
+                <div class="balance-bar-container">
+                    <div class="balance-bar" style="height: 70%;"></div>
+                </div>
+                <div class="balance-tooltip">
+                    <div class="balance-tooltip-date">Jul 2025</div>
+                    <div class="balance-tooltip-amount">$26.100</div>
+                </div>
+            </div>
+            <div class="balance-bar-wrap">
+                <span class="balance-bar-dot"></span>
+                <div class="balance-bar-container">
+                    <div class="balance-bar" style="height: 85%;"></div>
+                </div>
+                <div class="balance-tooltip">
+                    <div class="balance-tooltip-date">Ago 2025</div>
+                    <div class="balance-tooltip-amount">$31.050</div>
+                </div>
+            </div>
+            <div class="balance-bar-wrap">
+                <span class="balance-bar-dot"></span>
+                <div class="balance-bar-container">
+                    <div class="balance-bar" style="height: 68%;"></div>
+                </div>
+                <div class="balance-tooltip">
+                    <div class="balance-tooltip-date">Sep 2025</div>
+                    <div class="balance-tooltip-amount">$24.800</div>
+                </div>
+            </div>
+            <div class="balance-bar-wrap">
+                <span class="balance-bar-dot"></span>
+                <div class="balance-bar-container">
+                    <div class="balance-bar" style="height: 92%;"></div>
+                </div>
+                <div class="balance-tooltip">
+                    <div class="balance-tooltip-date">Oct 2025</div>
+                    <div class="balance-tooltip-amount">$33.500</div>
+                </div>
+            </div>
+            <div class="balance-bar-wrap">
+                <span class="balance-bar-dot"></span>
+                <div class="balance-bar-container">
+                    <div class="balance-bar" style="height: 58%;"></div>
+                </div>
+                <div class="balance-tooltip">
+                    <div class="balance-tooltip-date">Nov 2025</div>
+                    <div class="balance-tooltip-amount">$21.200</div>
+                </div>
+            </div>
+            <div class="balance-bar-wrap">
+                <span class="balance-bar-dot"></span>
+                <div class="balance-bar-container">
+                    <div class="balance-bar" style="height: 45%;"></div>
+                </div>
+                <div class="balance-tooltip">
+                    <div class="balance-tooltip-date">Dic 2025</div>
+                    <div class="balance-tooltip-amount">$16.600</div>
+                </div>
+            </div>
+        </div>
+        <div class="balance-x-axis">
+            <span>Ene</span>
+            <span>Feb</span>
+            <span>Mar</span>
+            <span>Abr</span>
+            <span>May</span>
+            <span>Jun</span>
+            <span>Jul</span>
+            <span>Ago</span>
+            <span>Sep</span>
+            <span>Oct</span>
+            <span>Nov</span>
+            <span>Dic</span>
+        </div>
+    </div>
+</body>
+</html>

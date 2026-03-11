@@ -1,0 +1,48 @@
+abarrote-smart/
+│
+├── main.py                          # Punto de entrada, registra routers y middleware
+├── database.py                      # Conexión SQLite + sesión SQLAlchemy
+├── requirements.txt
+├── README.md
+│
+├── routers/                         # Un archivo por dominio
+│   ├── __init__.py
+│   ├── productos.py                 # GET/POST/PUT/DELETE /productos
+│   ├── ventas.py                    # GET/POST /ventas
+│   ├── uploads.py                   # POST /upload/preview y /upload/confirmar
+│   └── reportes.py                  # GET /reportes/dashboard, ventas-por-dia, etc.
+│
+├── services/                        # Lógica de negocio, sin tocar HTTP
+│   ├── __init__.py
+│   ├── analytics.py                 # Las 5 métricas con Pandas
+│   └── upload_service.py            # Normalización, validación, inserción de archivos
+│
+├── models/                          # Definición de tablas SQLAlchemy
+│   ├── __init__.py
+│   ├── producto.py                  # Tabla productos
+│   ├── venta.py                     # Tabla ventas
+│   └── upload.py                    # Tabla uploads (historial de importaciones)
+│
+├── schemas/                         # Modelos Pydantic (validación de entrada/salida)
+│   ├── __init__.py
+│   ├── producto_schemas.py          # ProductoCreate, ProductoResponse, etc.
+│   ├── venta_schemas.py             # VentaCreate, VentaResponse
+│   └── upload_schemas.py            # MapeoRequest, UploadResult, FilaError
+│
+├── data/
+│   └── abarrote.db                  # Base de datos SQLite (se genera automáticamente)
+│
+├── temp/                            # Archivos temporales de uploads (se limpian solos)
+│
+└── frontend/
+    ├── index.html                   # Dashboard principal (métricas + gráficas)
+    ├── inventario.html              # CRUD de productos
+    ├── ventas.html                  # Registro manual de ventas
+    ├── importar.html                # Flujo de carga de archivos
+    ├── css/
+    │   └── styles.css
+    └── js/
+        ├── api.js                   # Todas las llamadas fetch centralizadas
+        ├── charts.js                # Configuración de Chart.js
+        ├── upload.js                # Lógica del selector de columnas
+        └── alerts.js                # Lógica de alertas de stock
