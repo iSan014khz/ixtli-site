@@ -2,7 +2,10 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from backend.routers import cargasArch, ventas, productos, reportes
+from backend import migrations
 import uvicorn
+
+migrations.run()
 
 app = FastAPI(title="Ixtli API", version="1.0.0")
 

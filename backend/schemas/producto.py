@@ -1,33 +1,45 @@
 from pydantic import BaseModel, computed_field
 from typing import Optional
 
+
 class ProductoRespuesta(BaseModel):
     id: int
     nombre: str
-    categoria: str
-    precio_venta: float
+    categoria: Optional[str] = None
+    precio_venta: Optional[float] = None
+    costo: Optional[float] = None
     stock_actual: int
     stock_minimo: int
     unidad: str
+
     @computed_field
     @property
     def alerta_stock(self) -> bool:
         return self.stock_actual < self.stock_minimo
-        
-    # es importante — sin él Pydantic no puede leer los objetos que devuelve SQLAlchemy directamente, solo diccionarios.
-    model_config = {"from_attributes": True} 
-    
+
+    @computed_field
+    @property
+    def margen_pct(self) -> Optional[float]:
+        if self.precio_venta and self.costo and self.precio_venta > 0:
+            return round((self.precio_venta - self.costo) / self.precio_venta * 100, 1)
+        return None
+
+    model_config = {"from_attributes": True}
+
+
 class ProductoCrear(BaseModel):
     nombre: str
-    categoria: str
-    precio_venta: float
-    stock_minimo: int
-    unidad: str
-    
+    categoria: Optional[str] = None
+    precio_venta: Optional[float] = None
+    costo: Optional[float] = None       # opcional; para cálculo de margen
+    stock_minimo: int = 5               # se puede recalcular con /recalcular-stock-minimo
+    unidad: str = "pieza"
+
+
 class ProductoActualizar(BaseModel):
-    nombre: Optional[str] = None # Campos opcionales
-    categoria: Optional[str] = None # Campos opcionales
-    precio_venta: Optional[float] = None # Campos opcionales
-    stock_minimo: Optional[int] = None # Campos opcionales
-    unidad: Optional[str] = None # Campos opcionales
-    
+    nombre: Optional[str] = None
+    categoria: Optional[str] = None
+    precio_venta: Optional[float] = None
+    costo: Optional[float] = None
+    stock_minimo: Optional[int] = None
+    unidad: Optional[str] = None

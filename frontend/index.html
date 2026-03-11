@@ -101,6 +101,10 @@
                         <div class="dcard-title">Top Productos</div>
                         <div class="dcard-sub">Por unidades vendidas — ¿Qué me mueve?</div>
                     </div>
+                    <div class="ptabs" id="topTabs">
+                        <button class="ptab active" data-top="unidades">Unidades</button>
+                        <button class="ptab" data-top="margen">Margen 💰</button>
+                    </div>
                 </div>
                 <div class="dcard-body" id="topList">
                     <div class="loading-list">
@@ -108,6 +112,11 @@
                         <div class="l-bar" style="width:85%"></div>
                         <div class="l-bar" style="width:72%"></div>
                         <div class="l-bar" style="width:60%"></div>
+                    </div>
+                </div>
+                <div style="padding:0 20px 14px">
+                    <div id="topMargenInfo" style="display:none;font-size:11px;color:var(--text-3);padding:8px 12px;background:var(--elevated);border-radius:8px">
+                        💡 Productos con <strong>mayor ganancia total generada</strong>. No siempre coincide con los más vendidos.
                     </div>
                 </div>
             </div>
@@ -143,6 +152,28 @@
                         <div class="l-bar" style="width:76%"></div>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- Día de semana + Flujo por hora -->
+        <div class="row-half">
+            <div class="dcard">
+                <div class="dcard-head">
+                    <div>
+                        <div class="dcard-title">Ventas por Día de la Semana</div>
+                        <div class="dcard-sub">Toca una barra para ver el flujo de ese día</div>
+                    </div>
+                </div>
+                <div class="ch-wrap"><div class="ch-h240"><canvas id="diaSemanaChart" style="cursor:pointer"></canvas></div></div>
+            </div>
+            <div class="dcard">
+                <div class="dcard-head">
+                    <div>
+                        <div class="dcard-title">Flujo de Compras por Hora</div>
+                        <div class="dcard-sub" id="flujoDiaSub">Selecciona un día en la gráfica de la izquierda</div>
+                    </div>
+                </div>
+                <div class="ch-wrap"><div class="ch-h240"><canvas id="flujoPorHoraChart"></canvas></div></div>
             </div>
         </div>
 

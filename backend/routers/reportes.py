@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from backend.database import get_db
 from backend.models import Producto, Venta
+from backend.services import analiticas
 
 router = APIRouter(prefix="/reportes", tags=["reportes"])
 
@@ -207,5 +208,38 @@ def ticket_promedio(
             "ticket_promedio": round(float(r.ticket_promedio), 2),
             "num_ventas": r.num_ventas
         }
+
         for r in resultados
     ]
+
+
+@router.get("/ventas-por-dia-semana")
+def ventas_por_dia_semana(db: Session = Depends(get_db)):
+    """Ventas históricas por día de la semana (Lunes=0 … Domingo=6), calculado con pandas."""
+    return analiticas.ventas_por_dia_semana(db)
+
+
+@router.get("/flujo-por-hora")
+def flujo_por_hora(dia_semana: int = 0, db: Session = Depends(get_db)):
+    """Flujo de compras por hora para un día de la semana (Lunes=0 … Domingo=6)."""
+    return analiticas.flujo_por_hora(db, dia_semana)
+
+
+@router.get("/top-por-margen")
+def top_por_margen(limite: int = 10, db: Session = Depends(get_db)):
+    """Top productos por margen de ganancia total. Solo productos con costo definido."""
+    return analiticas.top_por_margen(db, limite)
+
+
+@router.get("/stock-minimo-sugerido")
+def stock_minimo_sugerido(
+    lead_time_dias: int = 3,
+    ventana_dias:   int = 60,
+    db: Session = Depends(get_db),
+):
+    """
+    Previsualiza el stock mínimo óptimo calculado automáticamente.
+    No aplica cambios a la base de datos.
+    Parámetros opcionales: ?lead_time_dias=3&ventana_dias=60
+    """
+    return analiticas.calcular_stock_minimo_optimo(db, lead_time_dias, ventana_dias)

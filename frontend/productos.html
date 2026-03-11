@@ -47,6 +47,53 @@
     </div>
 </aside>
 
+<!-- Modal stock mínimo automático -->
+<div class="modal-bg" id="modalStock">
+    <div class="modal" style="max-width:780px;width:100%">
+        <button class="modal-close" id="modalStockClose">✕</button>
+        <div class="modal-title">🤖 Stock Mínimo Automático</div>
+        <p style="font-size:13px;color:var(--text-2);margin-bottom:6px">
+            Análisis de demanda de los últimos
+            <select id="fVentana" style="padding:3px 8px;font-size:13px;display:inline-block;width:auto">
+                <option value="30">30 días</option>
+                <option value="60" selected>60 días</option>
+                <option value="90">90 días</option>
+            </select>
+            con lead time de
+            <select id="fLeadTime" style="padding:3px 8px;font-size:13px;display:inline-block;width:auto">
+                <option value="2">2 días</option>
+                <option value="3" selected>3 días</option>
+                <option value="5">5 días</option>
+                <option value="7">7 días</option>
+            </select>
+            · Fórmula: <code style="background:var(--elevated);padding:2px 6px;border-radius:4px;font-size:11px">stock_min = avg×lead + 1.65×σ×√lead</code> (nivel de servicio 95%)
+        </p>
+        <button class="btn btn-ghost btn-sm" id="btnRecalcPreview" style="margin-bottom:14px">↻ Recalcular</button>
+        <div id="flashStock" class="alert-banner" style="margin-bottom:10px"></div>
+        <div class="tbl-wrap" style="max-height:380px;overflow-y:auto">
+            <table id="tblStock">
+                <thead>
+                    <tr>
+                        <th>Producto</th>
+                        <th>Demanda/día</th>
+                        <th>Desv. estándar</th>
+                        <th>Actual</th>
+                        <th>Sugerido</th>
+                        <th>Cambio</th>
+                    </tr>
+                </thead>
+                <tbody id="tblStockBody">
+                    <tr><td colspan="6" class="empty">Cargando análisis…</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-ghost" id="btnCancelarStock">Cancelar</button>
+            <button class="btn btn-primary" id="btnAplicarStock">✅ Aplicar a todos</button>
+        </div>
+    </div>
+</div>
+
 <!-- Modal crear / editar -->
 <div class="modal-bg" id="modalBg">
     <div class="modal">
@@ -69,8 +116,17 @@
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
                 <div class="field"><label>Precio de venta</label><input type="number" id="fPrecio" min="0" step="0.01" placeholder="0.00"></div>
-                <div class="field"><label>Stock mínimo</label><input type="number" id="fStockMin" min="0" value="5"></div>
+                <div class="field">
+                    <label>Costo <span style="color:var(--text-3);font-weight:400">(opcional)</span></label>
+                    <input type="number" id="fCosto" min="0" step="0.01" placeholder="Lo que te cuesta a ti">
+                </div>
             </div>
+            <div class="field" id="margenPreview" style="display:none">
+                <div style="font-size:12px;color:var(--text-2);padding:8px 12px;background:var(--elevated);border-radius:8px">
+                    Margen estimado: <strong id="margenVal" style="color:var(--green)">—</strong>
+                </div>
+            </div>
+            <div class="field"><label>Stock mínimo</label><input type="number" id="fStockMin" min="0" value="5"></div>
         </div>
         <div class="modal-actions">
             <button class="btn btn-ghost" id="btnCancelar">Cancelar</button>
@@ -101,6 +157,7 @@
         <div class="h-title">Productos <span>· Catálogo e inventario</span></div>
         <div class="h-gap"></div>
         <div class="h-status"><div class="status-dot"></div><span id="hTime">—</span></div>
+        <button class="h-btn" id="btnAutoStock">🤖 Auto stock mín.</button>
         <button class="h-btn" id="btnNuevo">+ Nuevo producto</button>
     </header>
 

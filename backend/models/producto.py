@@ -10,6 +10,7 @@ class Producto(Base):
     nombre        = Column(String, nullable=False, unique=True)
     categoria     = Column(String, nullable=True)          # libre, ej: "Bebidas"
     precio_venta  = Column(Float, nullable=True)           # puede venir del CSV
+    costo         = Column(Float, nullable=True)           # costo al dueño (opcional)
     stock_actual  = Column(Integer, nullable=False, default=0)
     stock_minimo  = Column(Integer, nullable=False, default=5)  # umbral de alerta
     unidad        = Column(String, nullable=False, default="pieza")  # pieza, kg, lt

@@ -25,25 +25,25 @@ random.seed(42)
 # ── Catálogo de productos ────────────────────────────────────────────────────────
 
 PRODUCTOS = [
-    # nombre                  categoria      precio_venta  stock_actual  stock_minimo  unidad
-    ("Coca-Cola 600ml",       "Bebidas",      18.0,         120,          20,           "pieza"),
-    ("Agua 1L",               "Bebidas",       8.0,          80,          15,           "pieza"),
-    ("Jugo Naranja 1L",       "Bebidas",      22.0,          35,          10,           "pieza"),
-    ("Cerveza Modelo 355ml",  "Bebidas",      25.0,          60,          12,           "pieza"),
-    ("Sabritas Original",     "Botanas",      16.0,          90,          15,           "pieza"),
-    ("Doritos Nacho",         "Botanas",      18.0,          55,          10,           "pieza"),
-    ("Chicharrón Barcel",     "Botanas",      14.0,           8,          10,           "pieza"),  # ← ALERTA
-    ("Leche Lala 1L",         "Lácteos",      24.0,          45,          20,           "pieza"),
-    ("Yogurt Fresa 1kg",      "Lácteos",      38.0,          12,          10,           "pieza"),
-    ("Queso Oaxaca 400g",     "Lácteos",      62.0,           3,          10,           "pieza"),  # ← CRÍTICO
-    ("Arroz Verde Valle 1kg", "Abarrotes",    28.0,          70,          15,           "pieza"),
-    ("Frijol Negro 1kg",      "Abarrotes",    32.0,           4,          10,           "pieza"),  # ← CRÍTICO
-    ("Azúcar Estándar 1kg",   "Abarrotes",    26.0,          50,          10,           "pieza"),
-    ("Aceite 1L",             "Abarrotes",    48.0,          25,          10,           "pieza"),
-    ("Detergente Roma 500g",  "Limpieza",     22.0,          30,          10,           "pieza"),
-    ("Cloro 1L",              "Limpieza",     18.0,           6,          10,           "pieza"),  # ← ALERTA
-    ("Marlboro Rojo",         "Cigarros",     68.0,          40,           8,           "pieza"),
-    ("Delicados 20 cigarros", "Cigarros",     42.0,          22,           8,           "pieza"),
+    # nombre                  categoria      precio_venta  stock_actual  stock_minimo  unidad    costo
+    ("Coca-Cola 600ml",       "Bebidas",      18.0,         120,          20,           "pieza",  11.0),
+    ("Agua 1L",               "Bebidas",       8.0,          80,          15,           "pieza",   4.5),
+    ("Jugo Naranja 1L",       "Bebidas",      22.0,          35,          10,           "pieza",  14.0),
+    ("Cerveza Modelo 355ml",  "Bebidas",      25.0,          60,          12,           "pieza",  16.0),
+    ("Sabritas Original",     "Botanas",      16.0,          90,          15,           "pieza",   9.0),
+    ("Doritos Nacho",         "Botanas",      18.0,          55,          10,           "pieza",  10.5),
+    ("Chicharrón Barcel",     "Botanas",      14.0,           8,          10,           "pieza",   7.5),  # ALERTA
+    ("Leche Lala 1L",         "Lácteos",      24.0,          45,          20,           "pieza",  17.0),
+    ("Yogurt Fresa 1kg",      "Lácteos",      38.0,          12,          10,           "pieza",  26.0),
+    ("Queso Oaxaca 400g",     "Lácteos",      62.0,           3,          10,           "pieza",  44.0),  # CRÍTICO
+    ("Arroz Verde Valle 1kg", "Abarrotes",    28.0,          70,          15,           "pieza",  18.0),
+    ("Frijol Negro 1kg",      "Abarrotes",    32.0,           4,          10,           "pieza",  21.0),  # CRÍTICO
+    ("Azúcar Estándar 1kg",   "Abarrotes",    26.0,          50,          10,           "pieza",  16.5),
+    ("Aceite 1L",             "Abarrotes",    48.0,          25,          10,           "pieza",  34.0),
+    ("Detergente Roma 500g",  "Limpieza",     22.0,          30,          10,           "pieza",  13.0),
+    ("Cloro 1L",              "Limpieza",     18.0,           6,          10,           "pieza",  10.5),  # ALERTA
+    ("Marlboro Rojo",         "Cigarros",     68.0,          40,           8,           "pieza",  55.0),
+    ("Delicados 20 cigarros", "Cigarros",     42.0,          22,           8,           "pieza",  34.0),
 ]
 
 # Patrón de demanda por producto: (min_unidades_dia, max_unidades_dia)
@@ -83,11 +83,12 @@ def limpiar_datos(db):
 
 def insertar_productos(db) -> dict[str, Producto]:
     objetos = {}
-    for nombre, categoria, precio, stock_actual, stock_minimo, unidad in PRODUCTOS:
+    for nombre, categoria, precio, stock_actual, stock_minimo, unidad, costo in PRODUCTOS:
         p = Producto(
             nombre=nombre,
             categoria=categoria,
             precio_venta=precio,
+            costo=costo,
             stock_actual=stock_actual,
             stock_minimo=stock_minimo,
             unidad=unidad,
@@ -108,7 +109,7 @@ def insertar_ventas(db, productos: dict[str, Producto], dias: int = 90):
     hoy = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
     ventas = []
 
-    for offset in range(dias, 0, -1):
+    for offset in range(dias, -1, -1):
         fecha_base = hoy - timedelta(days=offset)
         # Fines de semana venden ~30% más
         es_finde = fecha_base.weekday() >= 5
