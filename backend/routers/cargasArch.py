@@ -3,16 +3,13 @@ import io
 import json
 import os
 import uuid
-from typing import Optional
 
 import pandas as pd
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
 from backend.models import Carga, Venta, Producto
-from datetime import datetime
 
 from backend.schemas.carga import MapeoColumnas, ResultadoCarga
 
