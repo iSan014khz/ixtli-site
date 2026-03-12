@@ -18,7 +18,7 @@ from datetime import datetime, timedelta
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from backend.database import engine, SessionLocal, Base
-from backend.models import Producto, Venta
+from backend.models import Producto, Venta, Carga
 
 random.seed(42)
 

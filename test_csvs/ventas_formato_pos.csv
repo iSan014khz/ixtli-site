@@ -1,0 +1,76 @@
+transaction_date,item_name,qty_sold,unit_price
+2026-05-31T14:33,Coca-Cola 600ml,8,17.6
+2026-05-31T19:24,Agua 1L,8,7.9
+2026-05-31T11:30,Cerveza Modelo 355ml,3,25.4
+2026-05-31T11:49,Sabritas Original,12,16.2
+2026-05-31T09:59,Doritos Nacho,3,17.6
+2026-05-31T13:49,Leche Lala 1L,5,24.4
+2026-05-31T11:46,Arroz Verde Valle 1kg,3,27.3
+2026-05-31T18:33,Frijol Negro 1kg,3,31.8
+2026-05-31T08:13,Marlboro Rojo,12,68.1
+2026-05-31T18:27,Detergente Roma 500g,14,21.6
+2026-05-31T16:29,Aceite 1L,5,48.9
+2026-06-01T19:52,Coca-Cola 600ml,11,17.5
+2026-06-01T15:48,Sabritas Original,8,16.2
+2026-06-01T10:44,Doritos Nacho,11,17.8
+2026-06-01T13:34,Leche Lala 1L,7,24.0
+2026-06-01T18:16,Arroz Verde Valle 1kg,12,27.7
+2026-06-01T09:24,Frijol Negro 1kg,6,31.8
+2026-06-01T12:30,Marlboro Rojo,6,69.2
+2026-06-01T11:11,Aceite 1L,2,48.2
+2026-06-02T11:19,Coca-Cola 600ml,2,17.6
+2026-06-02T10:56,Agua 1L,8,7.9
+2026-06-02T16:29,Jugo Naranja 1L,4,21.3
+2026-06-02T19:40,Cerveza Modelo 355ml,9,25.0
+2026-06-02T17:03,Sabritas Original,11,15.6
+2026-06-02T10:50,Doritos Nacho,10,18.1
+2026-06-02T19:25,Leche Lala 1L,5,23.9
+2026-06-02T13:13,Arroz Verde Valle 1kg,8,27.9
+2026-06-02T18:48,Frijol Negro 1kg,3,31.4
+2026-06-02T11:45,Marlboro Rojo,8,66.5
+2026-06-02T10:03,Detergente Roma 500g,5,21.7
+2026-06-02T14:13,Aceite 1L,3,48.1
+2026-06-03T16:00,Coca-Cola 600ml,6,17.9
+2026-06-03T18:27,Agua 1L,12,8.0
+2026-06-03T12:47,Jugo Naranja 1L,12,21.8
+2026-06-03T15:36,Cerveza Modelo 355ml,11,25.4
+2026-06-03T15:29,Sabritas Original,4,16.3
+2026-06-03T17:38,Doritos Nacho,12,17.9
+2026-06-03T09:30,Leche Lala 1L,9,24.0
+2026-06-03T09:22,Frijol Negro 1kg,12,31.8
+2026-06-03T13:53,Marlboro Rojo,8,67.4
+2026-06-03T16:27,Aceite 1L,3,48.8
+2026-06-04T17:47,Coca-Cola 600ml,2,17.6
+2026-06-04T12:01,Agua 1L,5,8.1
+2026-06-04T11:02,Jugo Naranja 1L,2,22.4
+2026-06-04T11:33,Cerveza Modelo 355ml,11,25.5
+2026-06-04T15:22,Sabritas Original,4,15.9
+2026-06-04T13:15,Doritos Nacho,7,18.3
+2026-06-04T10:37,Leche Lala 1L,12,23.8
+2026-06-04T14:58,Arroz Verde Valle 1kg,5,28.3
+2026-06-04T19:43,Frijol Negro 1kg,7,31.6
+2026-06-04T18:30,Marlboro Rojo,12,67.0
+2026-06-04T12:34,Detergente Roma 500g,2,21.9
+2026-06-04T08:27,Aceite 1L,7,46.8
+2026-06-05T19:00,Coca-Cola 600ml,7,18.1
+2026-06-05T13:43,Agua 1L,7,7.9
+2026-06-05T12:24,Jugo Naranja 1L,7,22.3
+2026-06-05T16:05,Cerveza Modelo 355ml,5,25.1
+2026-06-05T09:22,Doritos Nacho,3,18.1
+2026-06-05T11:03,Leche Lala 1L,7,24.5
+2026-06-05T16:25,Arroz Verde Valle 1kg,10,27.5
+2026-06-05T13:20,Frijol Negro 1kg,12,31.1
+2026-06-05T10:10,Marlboro Rojo,6,67.7
+2026-06-05T18:01,Detergente Roma 500g,11,22.2
+2026-06-05T13:30,Aceite 1L,4,46.6
+2026-06-06T13:37,Coca-Cola 600ml,5,17.7
+2026-06-06T08:15,Agua 1L,9,8.1
+2026-06-06T09:51,Jugo Naranja 1L,4,22.2
+2026-06-06T18:12,Cerveza Modelo 355ml,3,25.0
+2026-06-06T17:53,Sabritas Original,10,15.8
+2026-06-06T14:52,Doritos Nacho,6,17.7
+2026-06-06T11:28,Leche Lala 1L,8,23.8
+2026-06-06T19:13,Arroz Verde Valle 1kg,8,27.9
+2026-06-06T11:06,Frijol Negro 1kg,12,32.3
+2026-06-06T11:17,Marlboro Rojo,3,66.6
+2026-06-06T09:10,Detergente Roma 500g,10,21.4

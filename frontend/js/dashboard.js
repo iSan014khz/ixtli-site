@@ -95,12 +95,12 @@ async function loadTopProductos(modo = 'unidades') {
             c.innerHTML = data.map(p => `
                 <div class="prod-row">
                     <div class="prod-rank ${p.posicion <= 3 ? 'hi' : ''}">#${p.posicion}</div>
+                    <div class="prod-bar-bg">
+                        <div class="prod-bar-fill" style="width:${Math.round(p.margen_total/maxMargen*100)}%;background:linear-gradient(90deg,var(--green) 0%,#34d399 100%)"></div>
+                    </div>
                     <div class="prod-name" title="${p.nombre}">
                         ${p.nombre}
                         <span style="font-size:10px;color:var(--green);margin-left:4px">${p.margen_pct}%</span>
-                    </div>
-                    <div class="prod-bar-bg">
-                        <div class="prod-bar-fill" style="width:${Math.round(p.margen_total/maxMargen*100)}%;background:linear-gradient(90deg,var(--green) 0%,#34d399 100%)"></div>
                     </div>
                     <div class="prod-qty" style="color:var(--green)">${fmt.money(p.margen_total)}</div>
                 </div>`).join('');
@@ -112,10 +112,10 @@ async function loadTopProductos(modo = 'unidades') {
             c.innerHTML = data.map(p => `
                 <div class="prod-row">
                     <div class="prod-rank ${p.posicion <= 3 ? 'hi' : ''}">#${p.posicion}</div>
-                    <div class="prod-name" title="${p.producto}">${p.producto}</div>
                     <div class="prod-bar-bg">
                         <div class="prod-bar-fill" style="width:${Math.round(p.cantidad_total/max*100)}%"></div>
                     </div>
+                    <div class="prod-name" title="${p.producto}">${p.producto}</div>
                     <div class="prod-qty">${fmt.num(p.cantidad_total)}</div>
                 </div>`).join('');
         }

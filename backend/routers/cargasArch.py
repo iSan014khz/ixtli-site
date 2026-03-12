@@ -113,7 +113,10 @@ def confirmar(datos: MapeoColumnas, db: Session = Depends(get_db)):
         )
 
     # 5. Normalizar
-    df["fecha"] = pd.to_datetime(df["fecha"], dayfirst=True, errors="coerce")
+    # dayfirst=False para que fechas ISO (YYYY-MM-DD) y con T se parseen correctamente.
+    # Para formatos ambiguos (DD/MM/YYYY), el usuario debe asegurarse de usar
+    # separadores inequívocos o incluir el año primero.
+    df["fecha"] = pd.to_datetime(df["fecha"], dayfirst=False, errors="coerce")
     filas_invalidas = df["fecha"].isna().sum()
     df = df.dropna(subset=["fecha", "producto_nombre", "cantidad"])
     df["cantidad"] = pd.to_numeric(df["cantidad"], errors="coerce").fillna(0).astype(int)
