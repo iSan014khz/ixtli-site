@@ -3,11 +3,10 @@ from typing import Literal, Optional
 
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 
 from backend.database import get_db
-from backend.models import Producto, Venta
 from backend.services import analiticas
 
 router = APIRouter(prefix="/reportes", tags=["reportes"])
@@ -41,32 +40,47 @@ def dashboard(db: Session = Depends(get_db)):
     """KPIs del día: ventas totales, ticket promedio, alertas activas y top 3 productos"""
     inicio, fin = _rango_dia(date.today())
 
-    total, num_ventas = db.query(
-        func.coalesce(func.sum(Venta.precio_total), 0.0),
-        func.count(Venta.id)
-    ).filter(Venta.fecha >= inicio, Venta.fecha <= fin).first()
+    r = db.execute(
+        text(
+            """
+            SELECT
+              COALESCE(SUM(precio_total), 0.0) AS total,
+              COUNT(1) AS num_ventas
+            FROM ventas
+            WHERE fecha >= :inicio AND fecha <= :fin
+            """
+        ),
+        {"inicio": inicio, "fin": fin},
+    ).mappings().one()
 
+    total = float(r["total"] or 0.0)
+    num_ventas = int(r["num_ventas"] or 0)
     ticket_promedio = round(total / num_ventas, 2) if num_ventas > 0 else 0.0
 
-    alertas = db.query(func.count(Producto.id)).filter(
-        Producto.stock_actual < Producto.stock_minimo
-    ).scalar()
+    alertas = db.execute(
+        text("SELECT COUNT(1) AS n FROM productos WHERE stock_actual < stock_minimo")
+    ).mappings().one()["n"]
 
-    top_3 = db.query(
-        Venta.producto_nombre,
-        func.sum(Venta.cantidad).label("cantidad")
-    ).filter(
-        Venta.fecha >= inicio, Venta.fecha <= fin
-    ).group_by(Venta.producto_nombre).order_by(
-        func.sum(Venta.cantidad).desc()
-    ).limit(3).all()
+    top_3 = db.execute(
+        text(
+            """
+            SELECT producto_nombre, SUM(cantidad) AS cantidad
+            FROM ventas
+            WHERE fecha >= :inicio AND fecha <= :fin
+            GROUP BY producto_nombre
+            ORDER BY SUM(cantidad) DESC
+            LIMIT 3
+            """
+        ),
+        {"inicio": inicio, "fin": fin},
+    ).mappings().all()
 
     return {
         "ventas_totales_hoy": round(float(total), 2),
         "num_transacciones_hoy": num_ventas,
         "ticket_promedio_hoy": ticket_promedio,
-        "alertas_activas": alertas,
-        "top_3_productos_hoy": [{"producto": r[0], "cantidad": r[1]} for r in top_3]
+        "alertas_activas": int(alertas or 0),
+        "top_3_productos_hoy": [{"producto": r["producto_nombre"], "cantidad": r["cantidad"]} for r in top_3],
     }
 
 
@@ -81,23 +95,34 @@ def ventas_por_periodo(
     _validar_rango(desde, hasta)
 
     fmt = _formato_strftime(agrupacion)
-
-    query = db.query(
-        func.strftime(fmt, Venta.fecha).label("periodo"),
-        func.coalesce(func.sum(Venta.precio_total), 0.0).label("total"),
-        func.count(Venta.id).label("num_ventas")
-    )
-
+    where = ""
+    params = {}
     if desde and hasta:
-        query = query.filter(
-            Venta.fecha >= datetime.combine(desde, datetime.min.time()),
-            Venta.fecha <= datetime.combine(hasta, datetime.max.time())
-        )
+        where = "WHERE fecha >= :inicio AND fecha <= :fin"
+        params = {
+            "inicio": datetime.combine(desde, datetime.min.time()),
+            "fin": datetime.combine(hasta, datetime.max.time()),
+        }
 
-    resultados = query.group_by("periodo").order_by("periodo").all()
+    rows = db.execute(
+        text(
+            f"""
+            SELECT strftime('{fmt}', fecha) AS periodo,
+                   COALESCE(SUM(precio_total), 0.0) AS total,
+                   COUNT(1) AS num_ventas
+            FROM ventas
+            {where}
+            GROUP BY periodo
+            ORDER BY periodo
+            """
+        ),
+        params,
+    ).mappings().all()
 
-    return [{"periodo": r.periodo, "total": round(float(r.total), 2), "num_ventas": r.num_ventas}
-            for r in resultados]
+    return [
+        {"periodo": r["periodo"], "total": round(float(r["total"]), 2), "num_ventas": int(r["num_ventas"])}
+        for r in rows
+    ]
 
 
 @router.get("/top-productos")
@@ -113,65 +138,90 @@ def top_productos(
     if limite < 1 or limite > 100:
         raise HTTPException(status_code=400, detail="'limite' debe estar entre 1 y 100")
 
-    query = db.query(
-        Venta.producto_nombre,
-        func.sum(Venta.cantidad).label("cantidad_total"),
-        func.coalesce(func.sum(Venta.precio_total), 0.0).label("ingresos_total")
-    )
-
+    where = ""
+    params = {"lim": limite}
     if desde and hasta:
-        query = query.filter(
-            Venta.fecha >= datetime.combine(desde, datetime.min.time()),
-            Venta.fecha <= datetime.combine(hasta, datetime.max.time())
+        where = "WHERE fecha >= :inicio AND fecha <= :fin"
+        params.update(
+            {
+                "inicio": datetime.combine(desde, datetime.min.time()),
+                "fin": datetime.combine(hasta, datetime.max.time()),
+            }
         )
 
-    resultados = query.group_by(Venta.producto_nombre).order_by(
-        func.sum(Venta.cantidad).desc()
-    ).limit(limite).all()
+    rows = db.execute(
+        text(
+            f"""
+            SELECT producto_nombre AS producto,
+                   SUM(cantidad) AS cantidad_total,
+                   COALESCE(SUM(precio_total), 0.0) AS ingresos_total
+            FROM ventas
+            {where}
+            GROUP BY producto_nombre
+            ORDER BY SUM(cantidad) DESC
+            LIMIT :lim
+            """
+        ),
+        params,
+    ).mappings().all()
 
     return [
         {
             "posicion": i + 1,
-            "producto": r.producto_nombre,
-            "cantidad_total": r.cantidad_total,
-            "ingresos_total": round(float(r.ingresos_total), 2)
+            "producto": r["producto"],
+            "cantidad_total": int(r["cantidad_total"]),
+            "ingresos_total": round(float(r["ingresos_total"]), 2),
         }
-        for i, r in enumerate(resultados)
+        for i, r in enumerate(rows)
     ]
 
 
 @router.get("/rotacion")
 def rotacion(db: Session = Depends(get_db)):
     """Por cada producto: stock actual, promedio de ventas diarias y días estimados de stock"""
-    productos = db.query(Producto).all()
     hace_30_dias = datetime.now() - timedelta(days=30)
+    # Un solo query: productos + ventas_30d agregadas por producto_id
+    rows = db.execute(
+        text(
+            """
+            SELECT
+              p.id AS producto_id,
+              p.nombre,
+              p.categoria,
+              p.stock_actual,
+              p.stock_minimo,
+              CASE WHEN p.stock_actual < p.stock_minimo THEN 1 ELSE 0 END AS alerta,
+              COALESCE(v.cant_30d, 0) AS ventas_ultimos_30d
+            FROM productos p
+            LEFT JOIN (
+              SELECT producto_id, SUM(cantidad) AS cant_30d
+              FROM ventas
+              WHERE fecha >= :corte AND producto_id IS NOT NULL
+              GROUP BY producto_id
+            ) v ON v.producto_id = p.id
+            """
+        ),
+        {"corte": hace_30_dias},
+    ).mappings().all()
 
     resultado = []
-    for p in productos:
-        ventas_30d = db.query(
-            func.coalesce(func.sum(Venta.cantidad), 0)
-        ).filter(
-            Venta.producto_id == p.id,
-            Venta.fecha >= hace_30_dias
-        ).scalar()
-
+    for r in rows:
+        ventas_30d = float(r["ventas_ultimos_30d"] or 0)
         promedio_diario = round(ventas_30d / 30, 2)
-        dias_restantes = (
-            round(p.stock_actual / promedio_diario) if promedio_diario > 0 else None
+        dias_restantes = round(r["stock_actual"] / promedio_diario) if promedio_diario > 0 else None
+        resultado.append(
+            {
+                "producto_id": r["producto_id"],
+                "nombre": r["nombre"],
+                "categoria": r["categoria"],
+                "stock_actual": r["stock_actual"],
+                "stock_minimo": r["stock_minimo"],
+                "alerta": bool(r["alerta"]),
+                "ventas_ultimos_30d": int(ventas_30d),
+                "promedio_diario": promedio_diario,
+                "dias_stock_estimados": dias_restantes,
+            }
         )
-
-        resultado.append({
-            "producto_id": p.id,
-            "nombre": p.nombre,
-            "categoria": p.categoria,
-            "stock_actual": p.stock_actual,
-            "stock_minimo": p.stock_minimo,
-            "alerta": p.stock_actual < p.stock_minimo,
-            "ventas_ultimos_30d": ventas_30d,
-            "promedio_diario": promedio_diario,
-            "dias_stock_estimados": dias_restantes
-        })
-
     resultado.sort(key=lambda x: (x["dias_stock_estimados"] is None, x["dias_stock_estimados"]))
     return resultado
 
@@ -187,29 +237,37 @@ def ticket_promedio(
     _validar_rango(desde, hasta)
 
     fmt = _formato_strftime(agrupacion)
-
-    query = db.query(
-        func.strftime(fmt, Venta.fecha).label("periodo"),
-        func.coalesce(func.avg(Venta.precio_total), 0.0).label("ticket_promedio"),
-        func.count(Venta.id).label("num_ventas")
-    )
-
+    where = ""
+    params = {}
     if desde and hasta:
-        query = query.filter(
-            Venta.fecha >= datetime.combine(desde, datetime.min.time()),
-            Venta.fecha <= datetime.combine(hasta, datetime.max.time())
-        )
+        where = "WHERE fecha >= :inicio AND fecha <= :fin"
+        params = {
+            "inicio": datetime.combine(desde, datetime.min.time()),
+            "fin": datetime.combine(hasta, datetime.max.time()),
+        }
 
-    resultados = query.group_by("periodo").order_by("periodo").all()
+    rows = db.execute(
+        text(
+            f"""
+            SELECT strftime('{fmt}', fecha) AS periodo,
+                   COALESCE(AVG(precio_total), 0.0) AS ticket_promedio,
+                   COUNT(1) AS num_ventas
+            FROM ventas
+            {where}
+            GROUP BY periodo
+            ORDER BY periodo
+            """
+        ),
+        params,
+    ).mappings().all()
 
     return [
         {
-            "periodo": r.periodo,
-            "ticket_promedio": round(float(r.ticket_promedio), 2),
-            "num_ventas": r.num_ventas
+            "periodo": r["periodo"],
+            "ticket_promedio": round(float(r["ticket_promedio"]), 2),
+            "num_ventas": int(r["num_ventas"]),
         }
-
-        for r in resultados
+        for r in rows
     ]
 
 

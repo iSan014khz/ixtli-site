@@ -4,11 +4,10 @@ import pandas as pd
 from datetime import date, datetime, timedelta
 from typing import Literal, Optional
 
-from sqlalchemy import func
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from backend.models import Producto, Venta
-
+ 
 
 # ── Helpers internos ────────────────────────────────────────────────────────────
 
@@ -20,6 +19,11 @@ def _dt_fin(d: date) -> datetime:
 
 def _formato_strftime(agrupacion: str) -> str:
     return {"dia": "%Y-%m-%d", "semana": "%Y-%W", "mes": "%Y-%m"}.get(agrupacion, "%Y-%m-%d")
+
+
+def _rows(db: Session, sql: str, params: dict | None = None) -> list[dict]:
+    """Ejecuta SQL y devuelve lista de dicts (mappings)."""
+    return [dict(r) for r in db.execute(text(sql), params or {}).mappings().all()]
 
 
 # ── 1. Ventas por período  (Descriptiva — ¿Cómo voy?) ──────────────────────────
@@ -35,30 +39,34 @@ def ventas_por_periodo(
     Sin filtro de fechas retorna todo el historial.
     """
     fmt = _formato_strftime(agrupacion)
-
-    query = db.query(
-        func.strftime(fmt, Venta.fecha).label("periodo"),
-        func.coalesce(func.sum(Venta.precio_total), 0.0).label("ingresos"),
-        func.count(Venta.id).label("num_ventas"),
-        func.coalesce(func.sum(Venta.cantidad), 0).label("unidades_vendidas"),
-    )
-
+    where = ""
+    params: dict = {}
     if desde and hasta:
-        query = query.filter(
-            Venta.fecha >= _dt_inicio(desde),
-            Venta.fecha <= _dt_fin(hasta),
-        )
+        where = "WHERE fecha >= :inicio AND fecha <= :fin"
+        params = {"inicio": _dt_inicio(desde), "fin": _dt_fin(hasta)}
 
-    resultados = query.group_by("periodo").order_by("periodo").all()
-
+    rows = _rows(
+        db,
+        f"""
+        SELECT strftime('{fmt}', fecha) AS periodo,
+               COALESCE(SUM(precio_total), 0.0) AS ingresos,
+               COUNT(1) AS num_ventas,
+               COALESCE(SUM(cantidad), 0) AS unidades_vendidas
+        FROM ventas
+        {where}
+        GROUP BY periodo
+        ORDER BY periodo
+        """,
+        params,
+    )
     return [
         {
-            "periodo": r.periodo,
-            "ingresos": round(float(r.ingresos), 2),
-            "num_ventas": r.num_ventas,
-            "unidades_vendidas": r.unidades_vendidas,
+            "periodo": r["periodo"],
+            "ingresos": round(float(r["ingresos"]), 2),
+            "num_ventas": int(r["num_ventas"]),
+            "unidades_vendidas": int(r["unidades_vendidas"]),
         }
-        for r in resultados
+        for r in rows
     ]
 
 
@@ -74,36 +82,37 @@ def top_productos(
     Ranking de productos ordenado por cantidad vendida.
     Incluye ingresos totales y participación porcentual.
     """
-    query = db.query(
-        Venta.producto_nombre,
-        func.sum(Venta.cantidad).label("cantidad_total"),
-        func.coalesce(func.sum(Venta.precio_total), 0.0).label("ingresos_total"),
-    )
-
+    where = ""
+    params: dict = {"lim": limite}
     if desde and hasta:
-        query = query.filter(
-            Venta.fecha >= _dt_inicio(desde),
-            Venta.fecha <= _dt_fin(hasta),
-        )
+        where = "WHERE fecha >= :inicio AND fecha <= :fin"
+        params.update({"inicio": _dt_inicio(desde), "fin": _dt_fin(hasta)})
 
-    resultados = (
-        query.group_by(Venta.producto_nombre)
-        .order_by(func.sum(Venta.cantidad).desc())
-        .limit(limite)
-        .all()
+    rows = _rows(
+        db,
+        f"""
+        SELECT producto_nombre AS producto,
+               SUM(cantidad) AS cantidad_total,
+               COALESCE(SUM(precio_total), 0.0) AS ingresos_total
+        FROM ventas
+        {where}
+        GROUP BY producto_nombre
+        ORDER BY SUM(cantidad) DESC
+        LIMIT :lim
+        """,
+        params,
     )
 
-    total_unidades = sum(r.cantidad_total for r in resultados) or 1
-
+    total_unidades = sum(int(r["cantidad_total"]) for r in rows) or 1
     return [
         {
             "posicion": i + 1,
-            "producto": r.producto_nombre,
-            "cantidad_total": r.cantidad_total,
-            "ingresos_total": round(float(r.ingresos_total), 2),
-            "participacion_pct": round(r.cantidad_total / total_unidades * 100, 1),
+            "producto": r["producto"],
+            "cantidad_total": int(r["cantidad_total"]),
+            "ingresos_total": round(float(r["ingresos_total"]), 2),
+            "participacion_pct": round(int(r["cantidad_total"]) / total_unidades * 100, 1),
         }
-        for i, r in enumerate(resultados)
+        for i, r in enumerate(rows)
     ]
 
 
@@ -116,31 +125,44 @@ def rotacion_inventario(db: Session, ventana_dias: int = 30) -> list[dict]:
     - Días estimados hasta agotar el stock actual
     Ordenado del más urgente al menos urgente.
     """
-    productos = db.query(Producto).all()
     corte = datetime.now() - timedelta(days=ventana_dias)
+    rows = _rows(
+        db,
+        f"""
+        SELECT
+          p.id AS producto_id,
+          p.nombre,
+          p.categoria,
+          p.stock_actual,
+          p.stock_minimo,
+          CASE WHEN p.stock_actual < p.stock_minimo THEN 1 ELSE 0 END AS alerta,
+          COALESCE(v.cant, 0) AS ventas_periodo
+        FROM productos p
+        LEFT JOIN (
+          SELECT producto_id, SUM(cantidad) AS cant
+          FROM ventas
+          WHERE fecha >= :corte AND producto_id IS NOT NULL
+          GROUP BY producto_id
+        ) v ON v.producto_id = p.id
+        ORDER BY p.nombre
+        """,
+        {"corte": corte},
+    )
 
     resultado = []
-    for p in productos:
-        ventas_periodo = (
-            db.query(func.coalesce(func.sum(Venta.cantidad), 0))
-            .filter(Venta.producto_id == p.id, Venta.fecha >= corte)
-            .scalar()
-        )
-
+    for r in rows:
+        ventas_periodo = float(r["ventas_periodo"] or 0)
         promedio_diario = round(ventas_periodo / ventana_dias, 3)
-        dias_restantes = (
-            round(p.stock_actual / promedio_diario) if promedio_diario > 0 else None
-        )
-
+        dias_restantes = round(r["stock_actual"] / promedio_diario) if promedio_diario > 0 else None
         resultado.append(
             {
-                "producto_id": p.id,
-                "nombre": p.nombre,
-                "categoria": p.categoria,
-                "stock_actual": p.stock_actual,
-                "stock_minimo": p.stock_minimo,
-                "alerta": p.stock_actual < p.stock_minimo,
-                f"ventas_ultimos_{ventana_dias}d": ventas_periodo,
+                "producto_id": r["producto_id"],
+                "nombre": r["nombre"],
+                "categoria": r["categoria"],
+                "stock_actual": r["stock_actual"],
+                "stock_minimo": r["stock_minimo"],
+                "alerta": bool(r["alerta"]),
+                f"ventas_ultimos_{ventana_dias}d": int(ventas_periodo),
                 "promedio_diario": promedio_diario,
                 "dias_stock_estimados": dias_restantes,
             }
@@ -165,42 +187,45 @@ def ticket_promedio(
     Un ticket creciente indica que los clientes compran más por visita.
     """
     fmt = _formato_strftime(agrupacion)
-
-    query = db.query(
-        func.strftime(fmt, Venta.fecha).label("periodo"),
-        func.coalesce(func.avg(Venta.precio_total), 0.0).label("ticket_promedio"),
-        func.count(Venta.id).label("num_ventas"),
-        func.coalesce(func.sum(Venta.precio_total), 0.0).label("ingresos_total"),
-    )
-
+    where = ""
+    params: dict = {}
     if desde and hasta:
-        query = query.filter(
-            Venta.fecha >= _dt_inicio(desde),
-            Venta.fecha <= _dt_fin(hasta),
-        )
+        where = "WHERE fecha >= :inicio AND fecha <= :fin"
+        params = {"inicio": _dt_inicio(desde), "fin": _dt_fin(hasta)}
 
-    filas = query.group_by("periodo").order_by("periodo").all()
+    filas = _rows(
+        db,
+        f"""
+        SELECT strftime('{fmt}', fecha) AS periodo,
+               COALESCE(AVG(precio_total), 0.0) AS ticket_promedio,
+               COUNT(1) AS num_ventas,
+               COALESCE(SUM(precio_total), 0.0) AS ingresos_total
+        FROM ventas
+        {where}
+        GROUP BY periodo
+        ORDER BY periodo
+        """,
+        params,
+    )
 
     resultado = []
     for i, r in enumerate(filas):
-        ticket_anterior = filas[i - 1].ticket_promedio if i > 0 else None
-        ticket_actual = float(r.ticket_promedio)
-
+        ticket_anterior = float(filas[i - 1]["ticket_promedio"]) if i > 0 else None
+        ticket_actual = float(r["ticket_promedio"])
         if ticket_anterior is not None and ticket_anterior > 0:
-            variacion_pct = round((ticket_actual - float(ticket_anterior)) / float(ticket_anterior) * 100, 1)
+            variacion_pct = round((ticket_actual - ticket_anterior) / ticket_anterior * 100, 1)
         else:
             variacion_pct = None
 
         resultado.append(
             {
-                "periodo": r.periodo,
+                "periodo": r["periodo"],
                 "ticket_promedio": round(ticket_actual, 2),
-                "num_ventas": r.num_ventas,
-                "ingresos_total": round(float(r.ingresos_total), 2),
+                "num_ventas": int(r["num_ventas"]),
+                "ingresos_total": round(float(r["ingresos_total"]), 2),
                 "variacion_pct": variacion_pct,
             }
         )
-
     return resultado
 
 
@@ -268,53 +293,48 @@ def top_por_margen(db: Session, limite: int = 10) -> list[dict]:
     - margen_pct       = margen_unitario / precio_venta × 100
     - margen_total     = margen_unitario × cantidad_vendida  ← criterio de orden
     """
-    prods = (
-        db.query(Producto)
-        .filter(Producto.costo.isnot(None), Producto.precio_venta.isnot(None))
-        .all()
+    rows = _rows(
+        db,
+        """
+        SELECT
+          p.id AS producto_id,
+          p.nombre,
+          p.categoria,
+          p.precio_venta,
+          p.costo,
+          SUM(v.cantidad) AS cantidad_vendida,
+          COUNT(v.id) AS num_ventas
+        FROM productos p
+        JOIN ventas v ON v.producto_id = p.id
+        WHERE p.costo IS NOT NULL AND p.precio_venta IS NOT NULL
+        GROUP BY p.id, p.nombre, p.categoria, p.precio_venta, p.costo
+        """,
     )
-    if not prods:
+    if not rows:
         return []
 
-    ids = [p.id for p in prods]
-    ventas_rows = db.query(Venta.producto_id, Venta.cantidad).filter(
-        Venta.producto_id.in_(ids)
-    ).all()
-
-    if not ventas_rows:
-        return []
-
-    df = pd.DataFrame(ventas_rows, columns=["producto_id", "cantidad"])
-    grp = df.groupby("producto_id")["cantidad"].agg(
-        cantidad_total="sum", num_ventas="count"
-    ).reset_index()
-
-    p_map = {p.id: p for p in prods}
     resultado = []
-
-    for _, row in grp.iterrows():
-        pid  = int(row["producto_id"])
-        p    = p_map.get(pid)
-        if not p:
-            continue
-
-        margen_u  = p.precio_venta - p.costo
-        margen_pct = round(margen_u / p.precio_venta * 100, 1) if p.precio_venta > 0 else 0.0
-        cantidad  = int(row["cantidad_total"])
-
-        resultado.append({
-            "posicion":         0,
-            "producto_id":      pid,
-            "nombre":           p.nombre,
-            "categoria":        p.categoria or "",
-            "precio_venta":     round(p.precio_venta, 2),
-            "costo":            round(p.costo, 2),
-            "margen_unitario":  round(margen_u, 2),
-            "margen_pct":       margen_pct,
-            "cantidad_vendida": cantidad,
-            "num_ventas":       int(row["num_ventas"]),
-            "margen_total":     round(margen_u * cantidad, 2),
-        })
+    for r in rows:
+        precio = float(r["precio_venta"])
+        costo = float(r["costo"])
+        margen_u = precio - costo
+        cantidad = int(r["cantidad_vendida"] or 0)
+        margen_pct = round(margen_u / precio * 100, 1) if precio > 0 else 0.0
+        resultado.append(
+            {
+                "posicion": 0,
+                "producto_id": int(r["producto_id"]),
+                "nombre": r["nombre"],
+                "categoria": r["categoria"] or "",
+                "precio_venta": round(precio, 2),
+                "costo": round(costo, 2),
+                "margen_unitario": round(margen_u, 2),
+                "margen_pct": margen_pct,
+                "cantidad_vendida": cantidad,
+                "num_ventas": int(r["num_ventas"] or 0),
+                "margen_total": round(margen_u * cantidad, 2),
+            }
+        )
 
     resultado.sort(key=lambda x: x["margen_total"], reverse=True)
     for i, r in enumerate(resultado[:limite], start=1):
@@ -329,13 +349,13 @@ DIAS_ES = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Dom
 
 def ventas_por_dia_semana(db: Session) -> list[dict]:
     """Ventas históricas agrupadas por día de la semana usando pandas."""
-    rows = db.query(Venta.fecha, Venta.precio_total).all()
+    rows = _rows(db, "SELECT fecha, precio_total FROM ventas WHERE fecha IS NOT NULL AND precio_total IS NOT NULL")
 
     if not rows:
         return [{"dia_num": n, "dia": DIAS_ES[n], "total": 0.0, "num_ventas": 0}
                 for n in range(7)]
 
-    df = pd.DataFrame(rows, columns=["fecha", "precio_total"])
+    df = pd.DataFrame(rows)
     df["fecha"] = pd.to_datetime(df["fecha"])
     df["dia_semana"] = df["fecha"].dt.dayofweek  # 0=Lunes … 6=Domingo
 
@@ -361,13 +381,13 @@ def ventas_por_dia_semana(db: Session) -> list[dict]:
 
 def flujo_por_hora(db: Session, dia_semana: int = 0) -> list[dict]:
     """Ventas por hora para un día de la semana dado (0=Lunes … 6=Domingo)."""
-    rows = db.query(Venta.fecha, Venta.precio_total).all()
+    rows = _rows(db, "SELECT fecha, precio_total FROM ventas WHERE fecha IS NOT NULL AND precio_total IS NOT NULL")
 
     if not rows:
         return [{"hora": f"{h:02d}:00", "total": 0.0, "num_ventas": 0}
                 for h in range(6, 23)]
 
-    df = pd.DataFrame(rows, columns=["fecha", "precio_total"])
+    df = pd.DataFrame(rows)
     df["fecha"] = pd.to_datetime(df["fecha"])
     df["dia_semana"] = df["fecha"].dt.dayofweek
     df["hora"]       = df["fecha"].dt.hour
@@ -413,13 +433,19 @@ def calcular_stock_minimo_optimo(
     - Aplica la fórmula de punto de reorden con stock de seguridad al 95 %
     """
     desde = datetime.now() - timedelta(days=ventana_dias)
-
-    productos = db.query(Producto).order_by(Producto.nombre).all()
-    ventas_rows = db.query(
-        Venta.producto_id,
-        Venta.cantidad,
-        Venta.fecha,
-    ).filter(Venta.fecha >= desde).all()
+    productos = _rows(
+        db,
+        "SELECT id, nombre, categoria, stock_actual, stock_minimo FROM productos ORDER BY nombre",
+    )
+    ventas_rows = _rows(
+        db,
+        """
+        SELECT producto_id, cantidad, fecha
+        FROM ventas
+        WHERE fecha >= :desde AND producto_id IS NOT NULL
+        """,
+        {"desde": desde},
+    )
 
     if ventas_rows:
         df = pd.DataFrame(ventas_rows, columns=["producto_id", "cantidad", "fecha"])
@@ -431,17 +457,18 @@ def calcular_stock_minimo_optimo(
 
     resultado = []
     for p in productos:
-        p_df = df[df["producto_id"] == p.id]
+        pid = int(p["id"])
+        p_df = df[df["producto_id"] == pid]
 
         if p_df.empty:
             # Sin historial → no se sugiere cambio
             resultado.append({
-                "producto_id":          p.id,
-                "nombre":               p.nombre,
-                "categoria":            p.categoria or "",
-                "stock_actual":         p.stock_actual,
-                "stock_minimo_actual":  p.stock_minimo,
-                "stock_minimo_sugerido": p.stock_minimo,
+                "producto_id":          pid,
+                "nombre":               p["nombre"],
+                "categoria":            p["categoria"] or "",
+                "stock_actual":         p["stock_actual"],
+                "stock_minimo_actual":  p["stock_minimo"],
+                "stock_minimo_sugerido": p["stock_minimo"],
                 "avg_diario":           0.0,
                 "std_diario":           0.0,
                 "sin_datos":            True,
@@ -466,16 +493,16 @@ def calcular_stock_minimo_optimo(
         sugerido = max(sugerido, 3)   # mínimo absoluto de 3 unidades
 
         resultado.append({
-            "producto_id":           p.id,
-            "nombre":                p.nombre,
-            "categoria":             p.categoria or "",
-            "stock_actual":          p.stock_actual,
-            "stock_minimo_actual":   p.stock_minimo,
+            "producto_id":           pid,
+            "nombre":                p["nombre"],
+            "categoria":             p["categoria"] or "",
+            "stock_actual":          p["stock_actual"],
+            "stock_minimo_actual":   p["stock_minimo"],
             "stock_minimo_sugerido": sugerido,
             "avg_diario":            round(float(avg), 2),
             "std_diario":            round(float(std), 2),
             "sin_datos":             False,
-            "diferencia":            sugerido - p.stock_minimo,
+            "diferencia":            sugerido - int(p["stock_minimo"]),
         })
 
     return resultado

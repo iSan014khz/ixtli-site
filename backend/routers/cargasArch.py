@@ -7,6 +7,8 @@ import uuid
 import pandas as pd
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
+from sqlalchemy import text
+from datetime import datetime
 
 from backend.database import get_db
 from backend.models import Carga, Venta, Producto
@@ -94,7 +96,11 @@ def confirmar(datos: MapeoColumnas, db: Session = Depends(get_db)):
         raw = f.read()
     hash_md5 = hashlib.md5(raw).hexdigest()
 
-    if db.query(Carga).filter(Carga.hash_md5 == hash_md5).first():
+    existe = db.execute(
+        text("SELECT 1 AS ok FROM cargas WHERE hash_md5 = :h LIMIT 1"),
+        {"h": hash_md5},
+    ).mappings().first()
+    if existe:
         raise HTTPException(status_code=409, detail="Este archivo ya fue importado anteriormente")
 
     # 3. Cargar en DataFrame y aplicar mapeo de columnas
@@ -131,46 +137,75 @@ def confirmar(datos: MapeoColumnas, db: Session = Depends(get_db)):
     fecha_min = df["fecha"].min().date()
     fecha_max = df["fecha"].max().date()
 
-    solapamiento = db.query(Carga).filter(
-        Carga.periodo_desde <= str(fecha_max),
-        Carga.periodo_hasta >= str(fecha_min)
-    ).first()
+    solapamiento = db.execute(
+        text(
+            """
+            SELECT nombre_original, periodo_desde, periodo_hasta
+            FROM cargas
+            WHERE periodo_desde <= :hasta AND periodo_hasta >= :desde
+            LIMIT 1
+            """
+        ),
+        {"desde": str(fecha_min), "hasta": str(fecha_max)},
+    ).mappings().first()
     if solapamiento:
         raise HTTPException(
             status_code=409,
             detail=(
-                f"El rango {fecha_min} – {fecha_max} solapa con la carga '{solapamiento.nombre_original}' "
-                f"({solapamiento.periodo_desde} – {solapamiento.periodo_hasta})"
+                f"El rango {fecha_min} – {fecha_max} solapa con la carga '{solapamiento['nombre_original']}' "
+                f"({solapamiento['periodo_desde']} – {solapamiento['periodo_hasta']})"
             )
         )
 
     # 7. Insertar ventas
     ventas_insertadas = 0
     for _, fila in df.iterrows():
-        producto = db.query(Producto).filter(Producto.nombre == fila["producto_nombre"]).first()
-        venta = Venta(
-            producto_id=producto.id if producto else None,
-            producto_nombre=str(fila["producto_nombre"]),
-            cantidad=int(fila["cantidad"]),
-            precio_unitario=fila.get("precio_unitario") if "precio_unitario" in df.columns else None,
-            precio_total=fila.get("precio_total") if "precio_total" in df.columns else None,
-            fecha=fila["fecha"].to_pydatetime()
+        prod = db.execute(
+            text("SELECT id FROM productos WHERE nombre = :n LIMIT 1"),
+            {"n": str(fila["producto_nombre"])},
+        ).mappings().first()
+        db.execute(
+            text(
+                """
+                INSERT INTO ventas (producto_id, producto_nombre, cantidad, precio_unitario, precio_total, fecha)
+                VALUES (:producto_id, :producto_nombre, :cantidad, :precio_unitario, :precio_total, :fecha)
+                """
+            ),
+            {
+                "producto_id": prod["id"] if prod else None,
+                "producto_nombre": str(fila["producto_nombre"]),
+                "cantidad": int(fila["cantidad"]),
+                "precio_unitario": fila.get("precio_unitario") if "precio_unitario" in df.columns else None,
+                "precio_total": fila.get("precio_total") if "precio_total" in df.columns else None,
+                "fecha": fila["fecha"].to_pydatetime(),
+            },
         )
-        db.add(venta)
         ventas_insertadas += 1
 
     # 8. Registrar la carga
-    carga = Carga(
-        archivo_id=datos.archivo_id,
-        hash_md5=hash_md5,
-        nombre_original=datos.nombre_archivo or datos.archivo_id,
-        filas_importadas=ventas_insertadas,
-        filas_ignoradas=int(filas_invalidas),
-        periodo_desde=str(fecha_min),
-        periodo_hasta=str(fecha_max),
-        mapeo_aplicado=json.dumps(datos.mapeo, ensure_ascii=False)
+    db.execute(
+        text(
+            """
+            INSERT INTO cargas
+              (archivo_id, hash_md5, nombre_original, filas_importadas, filas_ignoradas,
+               periodo_desde, periodo_hasta, mapeo_aplicado, fecha_upload)
+            VALUES
+              (:archivo_id, :hash_md5, :nombre_original, :filas_importadas, :filas_ignoradas,
+               :periodo_desde, :periodo_hasta, :mapeo_aplicado, :fecha_upload)
+            """
+        ),
+        {
+            "archivo_id": datos.archivo_id,
+            "hash_md5": hash_md5,
+            "nombre_original": datos.nombre_archivo or datos.archivo_id,
+            "filas_importadas": ventas_insertadas,
+            "filas_ignoradas": int(filas_invalidas),
+            "periodo_desde": str(fecha_min),
+            "periodo_hasta": str(fecha_max),
+            "mapeo_aplicado": json.dumps(datos.mapeo, ensure_ascii=False),
+            "fecha_upload": datetime.now(),
+        },
     )
-    db.add(carga)
     db.commit()
 
     # 9. Borrar temporal
@@ -188,13 +223,29 @@ def confirmar(datos: MapeoColumnas, db: Session = Depends(get_db)):
 @router.get("/historial")
 def historial(db: Session = Depends(get_db)):
     """Lista todos los uploads registrados, ordenados por fecha descendente"""
-    cargas = db.query(Carga).order_by(Carga.fecha_upload.desc()).all()
-    return [{
-        "id": c.id,
-        "nombre_original": c.nombre_original,
-        "fecha_upload": c.fecha_upload.strftime("%Y-%m-%d %H:%M") if c.fecha_upload else None,
-        "filas_importadas": c.filas_importadas,
-        "filas_ignoradas": c.filas_ignoradas,
-        "periodo_desde": c.periodo_desde,
-        "periodo_hasta": c.periodo_hasta
-    } for c in cargas]
+    rows = db.execute(
+        text(
+            """
+            SELECT id, nombre_original, fecha_upload, filas_importadas, filas_ignoradas, periodo_desde, periodo_hasta
+            FROM cargas
+            ORDER BY fecha_upload DESC, id DESC
+            """
+        )
+    ).mappings().all()
+
+    out = []
+    for r in rows:
+        d = dict(r)
+        fu = d.get("fecha_upload")
+        if fu is None:
+            d["fecha_upload"] = None
+        elif isinstance(fu, str):
+            # SQLite puede devolver TEXT
+            try:
+                d["fecha_upload"] = datetime.fromisoformat(fu.replace("Z", "")).strftime("%Y-%m-%d %H:%M")
+            except ValueError:
+                d["fecha_upload"] = fu[:16] if len(fu) >= 16 else fu
+        else:
+            d["fecha_upload"] = fu.strftime("%Y-%m-%d %H:%M")
+        out.append(d)
+    return out

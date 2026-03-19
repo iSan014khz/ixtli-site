@@ -19,6 +19,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from backend.database import engine, SessionLocal, Base
 from backend.models import Producto, Venta, Carga
+from sqlalchemy import text
 
 random.seed(42)
 
@@ -75,39 +76,43 @@ def crear_tablas():
 
 
 def limpiar_datos(db):
-    db.query(Venta).delete()
-    db.query(Producto).delete()
+    db.execute(text("DELETE FROM ventas"))
+    db.execute(text("DELETE FROM cargas"))
+    db.execute(text("DELETE FROM productos"))
     db.commit()
     print("[OK] Datos previos eliminados")
 
 
-def insertar_productos(db) -> dict[str, Producto]:
-    objetos = {}
+def insertar_productos(db) -> dict[str, int]:
+    ids: dict[str, int] = {}
     for nombre, categoria, precio, stock_actual, stock_minimo, unidad, costo in PRODUCTOS:
-        p = Producto(
-            nombre=nombre,
-            categoria=categoria,
-            precio_venta=precio,
-            costo=costo,
-            stock_actual=stock_actual,
-            stock_minimo=stock_minimo,
-            unidad=unidad,
+        db.execute(
+            text(
+                """
+                INSERT INTO productos (nombre, categoria, precio_venta, costo, stock_actual, stock_minimo, unidad)
+                VALUES (:nombre, :categoria, :precio_venta, :costo, :stock_actual, :stock_minimo, :unidad)
+                """
+            ),
+            {
+                "nombre": nombre,
+                "categoria": categoria,
+                "precio_venta": precio,
+                "costo": costo,
+                "stock_actual": stock_actual,
+                "stock_minimo": stock_minimo,
+                "unidad": unidad,
+            },
         )
-        db.add(p)
-        objetos[nombre] = p
+        new_id = db.execute(text("SELECT last_insert_rowid() AS id")).mappings().one()["id"]
+        ids[nombre] = int(new_id)
 
     db.commit()
-    # Refrescamos para obtener los IDs asignados
-    for p in objetos.values():
-        db.refresh(p)
-
-    print(f"[OK] {len(objetos)} productos insertados")
-    return objetos
+    print(f"[OK] {len(ids)} productos insertados")
+    return ids
 
 
-def insertar_ventas(db, productos: dict[str, Producto], dias: int = 90):
+def insertar_ventas(db, productos: dict[str, int], dias: int = 90):
     hoy = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-    ventas = []
 
     for offset in range(dias, -1, -1):
         fecha_base = hoy - timedelta(days=offset)
@@ -115,14 +120,14 @@ def insertar_ventas(db, productos: dict[str, Producto], dias: int = 90):
         es_finde = fecha_base.weekday() >= 5
         factor = 1.3 if es_finde else 1.0
 
-        for nombre, producto in productos.items():
+        for nombre, producto_id in productos.items():
             minv, maxv = DEMANDA[nombre]
             # Algunos días sin ventas de ciertos productos (realismo)
             if random.random() < 0.08:
                 continue
 
             cantidad = max(1, round(random.uniform(minv, maxv) * factor))
-            precio_u = producto.precio_venta
+            precio_u = next(p[2] for p in PRODUCTOS if p[0] == nombre)
 
             # Pequeña variación de precio (descuentos/redondeos)
             precio_u_real = round(precio_u * random.uniform(0.95, 1.02), 1)
@@ -132,20 +137,26 @@ def insertar_ventas(db, productos: dict[str, Producto], dias: int = 90):
             minuto = random.randint(0, 59)
             fecha_venta = fecha_base.replace(hour=hora, minute=minuto)
 
-            ventas.append(
-                Venta(
-                    producto_id=producto.id,
-                    producto_nombre=nombre,
-                    cantidad=cantidad,
-                    precio_unitario=precio_u_real,
-                    precio_total=round(precio_u_real * cantidad, 2),
-                    fecha=fecha_venta,
-                )
+            db.execute(
+                text(
+                    """
+                    INSERT INTO ventas (producto_id, producto_nombre, cantidad, precio_unitario, precio_total, fecha)
+                    VALUES (:producto_id, :producto_nombre, :cantidad, :precio_unitario, :precio_total, :fecha)
+                    """
+                ),
+                {
+                    "producto_id": producto_id,
+                    "producto_nombre": nombre,
+                    "cantidad": cantidad,
+                    "precio_unitario": precio_u_real,
+                    "precio_total": round(precio_u_real * cantidad, 2),
+                    "fecha": fecha_venta,
+                },
             )
 
-    db.bulk_save_objects(ventas)
     db.commit()
-    print(f"[OK] {len(ventas)} ventas generadas ({dias} dias de historial)")
+    n = db.execute(text("SELECT COUNT(1) AS n FROM ventas")).mappings().one()["n"]
+    print(f"[OK] {int(n)} ventas generadas ({dias} dias de historial)")
 
 
 def main():

@@ -1,12 +1,23 @@
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
-from backend.models import Venta, Producto
 from backend.database import get_db
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from datetime import date, datetime
 from typing import Optional
 
 router = APIRouter(prefix="/ventas", tags=["ventas"])
+
+def _fecha_to_str(v) -> Optional[str]:
+    if v is None:
+        return None
+    if isinstance(v, str):
+        # SQLite puede devolver TEXT aunque se inserte datetime
+        try:
+            return datetime.fromisoformat(v.replace("Z", "")).strftime("%Y-%m-%d")
+        except ValueError:
+            return v[:10] if len(v) >= 10 else v
+    return v.strftime("%Y-%m-%d")
 
 
 class VentaCreate(BaseModel):
@@ -34,63 +45,116 @@ def obtener_ventas(
                 status_code=400,
                 detail="'desde' no puede ser posterior a 'hasta'"
             )
-        ventas = db.query(Venta).filter(
-            Venta.fecha >= datetime.combine(desde, datetime.min.time()),
-            Venta.fecha <= datetime.combine(hasta, datetime.max.time())
-        ).all()
+        inicio = datetime.combine(desde, datetime.min.time())
+        fin = datetime.combine(hasta, datetime.max.time())
+        rows = db.execute(
+            text(
+                """
+                SELECT id, producto_id, producto_nombre, cantidad,
+                       precio_unitario, precio_total, fecha
+                FROM ventas
+                WHERE fecha >= :inicio AND fecha <= :fin
+                ORDER BY fecha DESC, id DESC
+                """
+            ),
+            {"inicio": inicio, "fin": fin},
+        ).mappings().all()
     else:
-        ventas = db.query(Venta).all()
+        rows = db.execute(
+            text(
+                """
+                SELECT id, producto_id, producto_nombre, cantidad,
+                       precio_unitario, precio_total, fecha
+                FROM ventas
+                ORDER BY fecha DESC, id DESC
+                """
+            )
+        ).mappings().all()
 
-    return [{
-        "id": venta.id,
-        "producto_id": venta.producto_id,
-        "producto_nombre": venta.producto_nombre,
-        "cantidad": venta.cantidad,
-        "precio_unitario": venta.precio_unitario,
-        "precio_total": venta.precio_total,
-        "fecha": venta.fecha.strftime("%Y-%m-%d")
-    } for venta in ventas]
+    out = []
+    for r in rows:
+        d = dict(r)
+        d["fecha"] = _fecha_to_str(d.get("fecha"))
+        out.append(d)
+    return out
 
 
 @router.post("/", status_code=201)
 def registrar_venta(datos: VentaCreate, db: Session = Depends(get_db)):
     """Registra una venta manual y descuenta el stock del producto"""
-    producto = db.query(Producto).filter(Producto.id == datos.producto_id).first()
-    if not producto:
+    prod = db.execute(
+        text(
+            """
+            SELECT id, nombre, precio_venta, stock_actual
+            FROM productos
+            WHERE id = :id
+            """
+        ),
+        {"id": datos.producto_id},
+    ).mappings().first()
+    if not prod:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
 
-    if producto.stock_actual < datos.cantidad:
+    if int(prod["stock_actual"]) < datos.cantidad:
         raise HTTPException(
             status_code=400,
-            detail=f"Stock insuficiente. Disponible: {producto.stock_actual}"
+            detail=f"Stock insuficiente. Disponible: {prod['stock_actual']}"
         )
 
-    precio_unitario = datos.precio_unitario if datos.precio_unitario is not None else producto.precio_venta
+    precio_unitario = datos.precio_unitario if datos.precio_unitario is not None else prod["precio_venta"]
     precio_total = round(precio_unitario * datos.cantidad, 2) if precio_unitario is not None else None
     fecha = datetime.combine(datos.fecha, datetime.min.time()) if datos.fecha else datetime.now()
 
-    venta = Venta(
-        producto_id=producto.id,
-        producto_nombre=producto.nombre,
-        cantidad=datos.cantidad,
-        precio_unitario=precio_unitario,
-        precio_total=precio_total,
-        fecha=fecha
+    # Insert venta
+    db.execute(
+        text(
+            """
+            INSERT INTO ventas (producto_id, producto_nombre, cantidad, precio_unitario, precio_total, fecha)
+            VALUES (:producto_id, :producto_nombre, :cantidad, :precio_unitario, :precio_total, :fecha)
+            """
+        ),
+        {
+            "producto_id": prod["id"],
+            "producto_nombre": prod["nombre"],
+            "cantidad": datos.cantidad,
+            "precio_unitario": precio_unitario,
+            "precio_total": precio_total,
+            "fecha": fecha,
+        },
     )
-    db.add(venta)
 
-    producto.stock_actual -= datos.cantidad
+    # Descontar stock
+    db.execute(
+        text("UPDATE productos SET stock_actual = stock_actual - :cant WHERE id = :id"),
+        {"cant": datos.cantidad, "id": prod["id"]},
+    )
 
     db.commit()
-    db.refresh(venta)
+
+    venta_id = db.execute(text("SELECT last_insert_rowid() AS id")).mappings().one()["id"]
+    venta = db.execute(
+        text(
+            """
+            SELECT id, producto_id, producto_nombre, cantidad, precio_unitario, precio_total, fecha
+            FROM ventas
+            WHERE id = :id
+            """
+        ),
+        {"id": venta_id},
+    ).mappings().one()
+
+    stock_restante = db.execute(
+        text("SELECT stock_actual FROM productos WHERE id = :id"),
+        {"id": prod["id"]},
+    ).mappings().one()["stock_actual"]
 
     return {
-        "id": venta.id,
-        "producto_id": venta.producto_id,
-        "producto_nombre": venta.producto_nombre,
-        "cantidad": venta.cantidad,
-        "precio_unitario": venta.precio_unitario,
-        "precio_total": venta.precio_total,
-        "fecha": venta.fecha.strftime("%Y-%m-%d"),
-        "stock_restante": producto.stock_actual
+        "id": venta["id"],
+        "producto_id": venta["producto_id"],
+        "producto_nombre": venta["producto_nombre"],
+        "cantidad": venta["cantidad"],
+        "precio_unitario": venta["precio_unitario"],
+        "precio_total": venta["precio_total"],
+        "fecha": _fecha_to_str(venta.get("fecha")),
+        "stock_restante": stock_restante,
     }
