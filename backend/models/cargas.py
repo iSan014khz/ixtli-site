@@ -1,4 +1,4 @@
-# models/upload.py
+# models/carga.py
 from sqlalchemy import Column, Integer, String, DateTime, Text
 from sqlalchemy.sql import func
 from backend.database import Base

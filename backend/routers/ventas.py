@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel
 from backend.database import get_db
+from backend.schemas.venta import VentaCrear
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from datetime import date, datetime
@@ -12,20 +12,11 @@ def _fecha_to_str(v) -> Optional[str]:
     if v is None:
         return None
     if isinstance(v, str):
-        # SQLite puede devolver TEXT aunque se inserte datetime
         try:
             return datetime.fromisoformat(v.replace("Z", "")).strftime("%Y-%m-%d")
         except ValueError:
             return v[:10] if len(v) >= 10 else v
     return v.strftime("%Y-%m-%d")
-
-
-class VentaCreate(BaseModel):
-    producto_id: int
-    cantidad: int
-    precio_unitario: Optional[float] = None
-    fecha: Optional[date] = None
-
 
 @router.get("/")
 def obtener_ventas(
@@ -35,40 +26,30 @@ def obtener_ventas(
 ):
     """Lista el historial de ventas. Acepta filtros opcionales: ?desde=2025-03-01&hasta=2025-03-07"""
     if (desde is None) != (hasta is None):
-        raise HTTPException(
-            status_code=400,
-            detail="Debes proporcionar ambos filtros: desde y hasta"
-        )
+        raise HTTPException(status_code=400, detail="Debes proporcionar ambos filtros: desde y hasta")
     if desde and hasta:
         if desde > hasta:
-            raise HTTPException(
-                status_code=400,
-                detail="'desde' no puede ser posterior a 'hasta'"
-            )
+            raise HTTPException(status_code=400, detail="'desde' no puede ser posterior a 'hasta'")
         inicio = datetime.combine(desde, datetime.min.time())
         fin = datetime.combine(hasta, datetime.max.time())
         rows = db.execute(
-            text(
-                """
+            text("""
                 SELECT id, producto_id, producto_nombre, cantidad,
                        precio_unitario, precio_total, fecha
                 FROM ventas
                 WHERE fecha >= :inicio AND fecha <= :fin
                 ORDER BY fecha DESC, id DESC
-                """
-            ),
+            """),
             {"inicio": inicio, "fin": fin},
         ).mappings().all()
     else:
         rows = db.execute(
-            text(
-                """
+            text("""
                 SELECT id, producto_id, producto_nombre, cantidad,
                        precio_unitario, precio_total, fecha
                 FROM ventas
                 ORDER BY fecha DESC, id DESC
-                """
-            )
+            """)
         ).mappings().all()
 
     out = []
@@ -78,18 +59,13 @@ def obtener_ventas(
         out.append(d)
     return out
 
-
 @router.post("/", status_code=201)
-def registrar_venta(datos: VentaCreate, db: Session = Depends(get_db)):
-    """Registra una venta manual y descuenta el stock del producto"""
+def registrar_venta(datos: VentaCrear, db: Session = Depends(get_db)):
     prod = db.execute(
-        text(
-            """
+        text("""
             SELECT id, nombre, precio_venta, stock_actual
-            FROM productos
-            WHERE id = :id
-            """
-        ),
+            FROM productos WHERE id = :id
+        """),
         {"id": datos.producto_id},
     ).mappings().first()
     if not prod:
@@ -101,9 +77,10 @@ def registrar_venta(datos: VentaCreate, db: Session = Depends(get_db)):
             detail=f"Stock insuficiente. Disponible: {prod['stock_actual']}"
         )
 
-    precio_unitario = datos.precio_unitario if datos.precio_unitario is not None else prod["precio_venta"]
-    precio_total = round(precio_unitario * datos.cantidad, 2) if precio_unitario is not None else None
+    precio_unitario = prod["precio_venta"]  # siempre viene de la BD
+    precio_total = round(precio_unitario * datos.cantidad, 2)
     fecha = datetime.combine(datos.fecha, datetime.min.time()) if datos.fecha else datetime.now()
+
 
     # Insert venta
     db.execute(
@@ -123,6 +100,8 @@ def registrar_venta(datos: VentaCreate, db: Session = Depends(get_db)):
         },
     )
 
+    venta_id = db.execute(text("SELECT last_insert_rowid() AS id")).mappings().one()["id"]
+    
     # Descontar stock
     db.execute(
         text("UPDATE productos SET stock_actual = stock_actual - :cant WHERE id = :id"),
@@ -131,7 +110,6 @@ def registrar_venta(datos: VentaCreate, db: Session = Depends(get_db)):
 
     db.commit()
 
-    venta_id = db.execute(text("SELECT last_insert_rowid() AS id")).mappings().one()["id"]
     venta = db.execute(
         text(
             """

@@ -162,14 +162,17 @@ def confirmar(datos: MapeoColumnas, db: Session = Depends(get_db)):
 
     # 7. Insertar ventas
     ventas_insertadas = 0
-    nombres = df["producto_nombre"].unique().tolist() # Lista de nombres de productos únicos
+    nombres = df["producto_nombre"].unique().tolist()
 
-    productos = db.execute( # Obtenemos id y nombre de los Productos que estén en la lista de nombres
-        text("SELECT id, nombre FROM productos WHERE nombre IN :nombres"),
-        {"nombres": tuple(nombres)},
-    ).mappings().all() # Hacemos el resultado compatible con los dicts y obtenemos en lista
+    # Generar placeholders: (:n0, :n1, :n2, ...)
+    placeholders = ", ".join(f":n{i}" for i in range(len(nombres)))
+    params = {f"n{i}": nombre for i, nombre in enumerate(nombres)}
 
-    # se genera un dict con clave (nombre) y valor(id) por cada producto en la lista
+    productos = db.execute(
+        text(f"SELECT id, nombre FROM productos WHERE nombre IN ({placeholders})"),
+        params,
+    ).mappings().all()
+
     productos_dict = {p["nombre"]: p["id"] for p in productos}
 
     for _, fila in df.iterrows():

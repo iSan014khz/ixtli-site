@@ -91,9 +91,8 @@ def obtener_producto(id: int, db: Session = Depends(get_db)):
     return dict(row)
 
 @router.post("/")
+@router.post("/")
 def crear_producto(producto: ProductoCrear, db: Session = Depends(get_db)):
-    """Crea un nuevo producto"""
-    # nombre es único
     existe = db.execute(
         text("SELECT 1 AS ok FROM productos WHERE nombre = :nombre LIMIT 1"),
         {"nombre": producto.nombre},
@@ -102,12 +101,10 @@ def crear_producto(producto: ProductoCrear, db: Session = Depends(get_db)):
         raise HTTPException(status_code=409, detail="Ya existe un producto con ese nombre")
 
     db.execute(
-        text(
-            """
+        text("""
             INSERT INTO productos (nombre, categoria, precio_venta, costo, stock_actual, stock_minimo, unidad)
             VALUES (:nombre, :categoria, :precio_venta, :costo, 0, :stock_minimo, :unidad)
-            """
-        ),
+        """),
         {
             "nombre": producto.nombre,
             "categoria": producto.categoria,
@@ -117,11 +114,12 @@ def crear_producto(producto: ProductoCrear, db: Session = Depends(get_db)):
             "unidad": producto.unidad,
         },
     )
-    db.commit()
+    db.commit()  # ← commit antes de leer
     new_id = db.execute(text("SELECT last_insert_rowid() AS id")).mappings().one()["id"]
     row = db.execute(text(_SEL_PRODUCTOS + " WHERE id = :id"), {"id": new_id}).mappings().one()
     return {"estado": "OK", **dict(row)}
-    
+
+
 @router.patch("/{id}")
 def actualizar_producto(id: int, producto: ProductoActualizar, db: Session = Depends(get_db)):
     """Actualiza un producto existente"""

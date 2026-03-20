@@ -3,9 +3,12 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from backend.routers import cargasArch, ventas, productos, reportes
 from backend import migrations
+from backend.database import Base, engine  # ← importar Base y engine
 import uvicorn
 
+Base.metadata.create_all(bind=engine)  # ← primero crear tablas
 migrations.ejecutar_migraciones()
+
 
 app = FastAPI(title="Ixtli API", version="1.0.0")
 
