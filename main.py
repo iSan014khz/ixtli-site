@@ -32,7 +32,7 @@ def serve_productos():
 def serve_importar():
     return FileResponse("frontend/importar.html")
 
-# Archivos estáticos (CSS, JS, etc.) — va DESPUÉS de todos los routers
+# Archivos estáticos (CSS, JS, etc.)
 app.mount("/", StaticFiles(directory="frontend"), name="static")
 
 if __name__ == "__main__":
