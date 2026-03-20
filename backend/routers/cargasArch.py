@@ -32,14 +32,14 @@ def _leer_archivo(ruta: str) -> pd.DataFrame:
 
 
 def _leer_headers_y_previa(contenido: bytes, extension: str):
-    buf = io.BytesIO(contenido)
+    buf = io.BytesIO(contenido) # Se guarda en memoria el contenido del archivo
     if extension in ("xlsx", "xls"):
         headers = pd.read_excel(buf, nrows=0)
-        buf.seek(0)
+        buf.seek(0) # Se vuelve al inicio del archivo
         previa = pd.read_excel(buf, nrows=3)
     else:
         headers = pd.read_csv(buf, nrows=0)
-        buf.seek(0)
+        buf.seek(0) # Se vuelve al inicio del archivo
         previa = pd.read_csv(buf, nrows=3)
     return headers, previa
 
@@ -63,7 +63,7 @@ async def previa(archivo: UploadFile = File(...)):
     os.makedirs(TEMP_DIR, exist_ok=True)
     ruta_temp = os.path.join(TEMP_DIR, f"{archivo_id}.{extension}")
     with open(ruta_temp, "wb") as f:
-        f.write(contenido)
+        f.write(contenido) # Escribimos el binario del archivo en la ruta temporal
 
     return {
         "archivo_id": archivo_id,
@@ -91,11 +91,13 @@ def confirmar(datos: MapeoColumnas, db: Session = Depends(get_db)):
     if not ruta_temp:
         raise HTTPException(status_code=404, detail="Archivo temporal no encontrado. Vuelve a hacer el preview")
 
-    # 2. Leer archivo y calcular hash (anti-duplicados)
+    # 2. Leer archivo y calcular hash
     with open(ruta_temp, "rb") as f:
         raw = f.read()
     hash_md5 = hashlib.md5(raw).hexdigest()
 
+    # Verificar duplicado ANTES de insertar ventas — si el archivo ya fue importado
+    # se detiene aquí sin tocar la tabla ventas
     existe = db.execute(
         text("SELECT 1 AS ok FROM cargas WHERE hash_md5 = :h LIMIT 1"),
         {"h": hash_md5},
@@ -148,6 +150,7 @@ def confirmar(datos: MapeoColumnas, db: Session = Depends(get_db)):
         ),
         {"desde": str(fecha_min), "hasta": str(fecha_max)},
     ).mappings().first()
+
     if solapamiento:
         raise HTTPException(
             status_code=409,
@@ -159,54 +162,67 @@ def confirmar(datos: MapeoColumnas, db: Session = Depends(get_db)):
 
     # 7. Insertar ventas
     ventas_insertadas = 0
+    nombres = df["producto_nombre"].unique().tolist() # Lista de nombres de productos únicos
+
+    productos = db.execute( # Obtenemos id y nombre de los Productos que estén en la lista de nombres
+        text("SELECT id, nombre FROM productos WHERE nombre IN :nombres"),
+        {"nombres": tuple(nombres)},
+    ).mappings().all() # Hacemos el resultado compatible con los dicts y obtenemos en lista
+
+    # se genera un dict con clave (nombre) y valor(id) por cada producto en la lista
+    productos_dict = {p["nombre"]: p["id"] for p in productos}
+
     for _, fila in df.iterrows():
-        prod = db.execute(
-            text("SELECT id FROM productos WHERE nombre = :n LIMIT 1"),
-            {"n": str(fila["producto_nombre"])},
-        ).mappings().first()
+
+        # La clave es el nombre pero el valor es el id
+        prod_id = productos_dict.get(str(fila["producto_nombre"]))
+
         db.execute(
-            text(
-                """
+            text("""
                 INSERT INTO ventas (producto_id, producto_nombre, cantidad, precio_unitario, precio_total, fecha)
                 VALUES (:producto_id, :producto_nombre, :cantidad, :precio_unitario, :precio_total, :fecha)
-                """
-            ),
+            """),
             {
-                "producto_id": prod["id"] if prod else None,
+                "producto_id": prod_id,
                 "producto_nombre": str(fila["producto_nombre"]),
                 "cantidad": int(fila["cantidad"]),
                 "precio_unitario": fila.get("precio_unitario") if "precio_unitario" in df.columns else None,
                 "precio_total": fila.get("precio_total") if "precio_total" in df.columns else None,
                 "fecha": fila["fecha"].to_pydatetime(),
-            },
+            }
         )
         ventas_insertadas += 1
 
-    # 8. Registrar la carga
-    db.execute(
-        text(
-            """
-            INSERT INTO cargas
-              (archivo_id, hash_md5, nombre_original, filas_importadas, filas_ignoradas,
-               periodo_desde, periodo_hasta, mapeo_aplicado, fecha_upload)
-            VALUES
-              (:archivo_id, :hash_md5, :nombre_original, :filas_importadas, :filas_ignoradas,
-               :periodo_desde, :periodo_hasta, :mapeo_aplicado, :fecha_upload)
-            """
-        ),
-        {
-            "archivo_id": datos.archivo_id,
-            "hash_md5": hash_md5,
-            "nombre_original": datos.nombre_archivo or datos.archivo_id,
-            "filas_importadas": ventas_insertadas,
-            "filas_ignoradas": int(filas_invalidas),
-            "periodo_desde": str(fecha_min),
-            "periodo_hasta": str(fecha_max),
-            "mapeo_aplicado": json.dumps(datos.mapeo, ensure_ascii=False),
-            "fecha_upload": datetime.now(),
-        },
-    )
-    db.commit()
+    # 8. Registrar la carga — el trigger es segunda línea de defensa contra duplicados
+    # en caso de condición de carrera (dos requests simultáneos con el mismo archivo)
+    try:
+        db.execute(
+            text(
+                """
+                INSERT INTO cargas
+                  (archivo_id, hash_md5, nombre_original, filas_importadas, filas_ignoradas,
+                   periodo_desde, periodo_hasta, mapeo_aplicado, fecha_carga)
+                VALUES
+                  (:archivo_id, :hash_md5, :nombre_original, :filas_importadas, :filas_ignoradas,
+                   :periodo_desde, :periodo_hasta, :mapeo_aplicado, :fecha_carga)
+                """
+            ),
+            {
+                "archivo_id": datos.archivo_id,
+                "hash_md5": hash_md5,
+                "nombre_original": datos.nombre_archivo or datos.archivo_id,
+                "filas_importadas": ventas_insertadas,
+                "filas_ignoradas": int(filas_invalidas),
+                "periodo_desde": str(fecha_min),
+                "periodo_hasta": str(fecha_max),
+                "mapeo_aplicado": json.dumps(datos.mapeo, ensure_ascii=False),
+                "fecha_carga": datetime.now(),
+            },
+        )
+        db.commit()
+    except Exception as e:
+        if "duplicado" in str(e):
+            raise HTTPException(status_code=409, detail="Este archivo ya fue importado anteriormente")
 
     # 9. Borrar temporal
     os.remove(ruta_temp)
@@ -222,30 +238,30 @@ def confirmar(datos: MapeoColumnas, db: Session = Depends(get_db)):
 
 @router.get("/historial")
 def historial(db: Session = Depends(get_db)):
-    """Lista todos los uploads registrados, ordenados por fecha descendente"""
-    rows = db.execute(
+    """Lista todas las cargas registradas, ordenadas por fecha descendente"""
+    cargas = db.execute(
         text(
             """
-            SELECT id, nombre_original, fecha_upload, filas_importadas, filas_ignoradas, periodo_desde, periodo_hasta
+            SELECT id, nombre_original, fecha_carga, filas_importadas, filas_ignoradas, periodo_desde, periodo_hasta
             FROM cargas
-            ORDER BY fecha_upload DESC, id DESC
+            ORDER BY fecha_carga DESC, id DESC
             """
         )
     ).mappings().all()
 
-    out = []
-    for r in rows:
-        d = dict(r)
-        fu = d.get("fecha_upload")
-        if fu is None:
-            d["fecha_upload"] = None
-        elif isinstance(fu, str):
+    resultado = []
+    for carga in cargas:
+        dicc = dict(carga)
+        fecha_carga = dicc.get("fecha_carga")
+        if fecha_carga is None:
+            dicc["fecha_carga"] = None
+        elif isinstance(fecha_carga, str):
             # SQLite puede devolver TEXT
             try:
-                d["fecha_upload"] = datetime.fromisoformat(fu.replace("Z", "")).strftime("%Y-%m-%d %H:%M")
+                dicc["fecha_carga"] = datetime.fromisoformat(fecha_carga.replace("Z", "")).strftime("%Y-%m-%d %H:%M")
             except ValueError:
-                d["fecha_upload"] = fu[:16] if len(fu) >= 16 else fu
+                dicc["fecha_carga"] = fecha_carga[:16] if len(fecha_carga) >= 16 else fecha_carga
         else:
-            d["fecha_upload"] = fu.strftime("%Y-%m-%d %H:%M")
-        out.append(d)
-    return out
+            dicc["fecha_carga"] = fecha_carga.strftime("%Y-%m-%d %H:%M")
+        resultado.append(dicc)
+    return resultado

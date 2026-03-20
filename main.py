@@ -5,7 +5,7 @@ from backend.routers import cargasArch, ventas, productos, reportes
 from backend import migrations
 import uvicorn
 
-migrations.run()
+migrations.ejecutar_migraciones()
 
 app = FastAPI(title="Ixtli API", version="1.0.0")
 
