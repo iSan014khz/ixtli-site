@@ -6,8 +6,8 @@ from datetime import datetime
 class VentaCrear(BaseModel):
     producto_id: int
     cantidad: int
-    precio_unitario: Optional[float] = None
-    fecha: Optional[datetime] = None
+    # precio_unitario: Optional[float] = None - No es necesario ya que lo calculamos en el endpoint
+    fecha: Optional[datetime] = None # Si no viene, usamos datetime.now()
 
 class VentaRespuesta(BaseModel):
     id: int
@@ -23,12 +23,6 @@ class VentaRespuesta(BaseModel):
 
 
 """
-{
-  "producto_id": 5,
-  "cantidad": 3,
-  "fecha": "2025-03-10T14:30:00"  // opcional
-}
-```
 
 Lo que el **endpoint calcula por su cuenta** antes de insertar:
 ```
@@ -39,8 +33,7 @@ fecha            →  si no viene, datetime.now()
 """
 
 """
-Una cosa que vale notar
 precio_unitario y precio_total son Optional[float] en VentaResponse 
 porque cuando la venta viene de un CSV importado puede que el usuario no haya mapeado esas columnas. 
-No siempre vas a tener esos datos, y el schema debe reflejar esa realidad.
+y hay que estar conscientes de que no siempre vas a tener esos datos.
 """
